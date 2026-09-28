@@ -1,0 +1,66 @@
+package team.siru.ecoguard.common.exception
+
+import org.springframework.http.HttpStatus
+
+enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
+    // common
+    VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),
+    FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없습니다."),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
+    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다."),
+
+    // auth
+    OAUTH_FAILED(HttpStatus.UNAUTHORIZED, "OAuth 인증에 실패했습니다."),
+    LOGOUT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "로그아웃에 실패했습니다."),
+    INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
+
+    // recruitments / applications
+    INVALID_PERIOD(HttpStatus.BAD_REQUEST, "모집 기간이 올바르지 않습니다."),
+    INVALID_MAX_COUNT(HttpStatus.BAD_REQUEST, "모집 인원이 올바르지 않습니다. (최대 6명)"),
+    OUT_OF_PERIOD(HttpStatus.BAD_REQUEST, "모집 기간이 아닙니다."),
+    ALREADY_APPLIED(HttpStatus.CONFLICT, "이미 신청했습니다."),
+    RECRUITMENT_FULL(HttpStatus.CONFLICT, "모집이 마감되었습니다."),
+    NO_APPLICATION(HttpStatus.NOT_FOUND, "신청 내역이 없습니다."),
+    NO_ACTIVE_RECRUITMENT(HttpStatus.NOT_FOUND, "진행 중인 모집 공고가 없습니다."),
+    RECRUITMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "모집 공고를 찾을 수 없습니다."),
+    RECRUITMENT_CLOSED(HttpStatus.CONFLICT, "이미 종료된 모집입니다."),
+    APPLICATION_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "신청자 정보 조회에 실패했습니다."),
+
+    // cleaning-areas
+    INACTIVE_AREA(HttpStatus.BAD_REQUEST, "비활성 구역에는 배정할 수 없습니다."),
+    STUDENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 학생입니다."),
+    NO_ASSIGNMENT(HttpStatus.NOT_FOUND, "배정된 구역이 없습니다."),
+    AREA_NOT_FOUND(HttpStatus.NOT_FOUND, "구역 정보를 찾을 수 없습니다."),
+    ZONE_MODEL_NOT_READY(HttpStatus.CONFLICT, "AI 모델이 준비되지 않은 구역은 활성화할 수 없습니다."),
+    MAP_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "도면 조회에 실패했습니다."),
+
+    // verifications
+    INVALID_IMAGE(HttpStatus.BAD_REQUEST, "읽을 수 없는 이미지입니다."),
+    GALLERY_UPLOAD_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "갤러리에서 업로드한 사진은 허용되지 않습니다."),
+    OUT_OF_CERTIFICATION_TIME(HttpStatus.FORBIDDEN, "인증 시간이 아닙니다."),
+    ALREADY_SUBMITTED_TODAY(HttpStatus.CONFLICT, "오늘 이미 제출했습니다."),
+    VERIFICATION_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "인증 내역 조회에 실패했습니다."),
+    VERIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "인증 내역을 찾을 수 없습니다."),
+
+    // ai-review
+    REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "검수 대상을 찾을 수 없습니다."),
+    NOT_MANUAL_REVIEW(HttpStatus.CONFLICT, "수동 검토 상태가 아니거나 이미 처리되었습니다."),
+    REVIEW_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "검수 대기 목록 조회에 실패했습니다."),
+
+    // activities
+    ACCUMULATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "봉사시간 적립에 실패했습니다."),
+    ACTIVITY_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "활동 기록 조회에 실패했습니다."),
+    NO_SEARCH_RESULT(HttpStatus.NOT_FOUND, "검색 결과가 없습니다."),
+
+    // appeals
+    APPEAL_ON_APPROVED_VERIFICATION(HttpStatus.CONFLICT, "이미 승인된 인증에는 이의신청할 수 없습니다."),
+    ALREADY_PROCESSED(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
+    APPEAL_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이의신청 목록 조회에 실패했습니다."),
+    APPEAL_NOT_FOUND(HttpStatus.NOT_FOUND, "이의신청을 찾을 수 없습니다."),
+
+    // notices
+    TITLE_OR_CONTENT_EMPTY(HttpStatus.BAD_REQUEST, "제목 또는 내용을 입력해야 합니다."),
+    NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 공지입니다."),
+    NOTICE_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "공지 조회에 실패했습니다."),
+}
