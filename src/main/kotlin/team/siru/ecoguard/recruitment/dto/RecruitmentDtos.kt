@@ -78,7 +78,7 @@ data class CurrentRecruitmentResponse(
 
 data class ApplicantResponse(
     val applicationId: Long,
-    val studentNumber: String,
+    val studentNumber: String?,
     val name: String,
     val motivation: String,
     val appliedAt: LocalDateTime,

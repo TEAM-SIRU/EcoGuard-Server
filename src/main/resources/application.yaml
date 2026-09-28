@@ -27,8 +27,14 @@ jwt:
 
 gsm:
   oauth:
+    # datagsm.kr/clients 에서 OAuth 클라이언트를 등록하면 client-id / client-secret(API 키)을 발급받는다.
+    # 실 연동을 켜려면 GSM_OAUTH_MOCK=false 로 두고, 아래 세 값을 환경변수로 채워 넣으면 된다.
     mock: ${GSM_OAUTH_MOCK:true}
-    base-url: ${GSM_OAUTH_BASE_URL:}
+    client-id: ${GSM_OAUTH_CLIENT_ID:}
+    client-secret: ${GSM_OAUTH_CLIENT_SECRET:}
+    redirect-uri: ${GSM_OAUTH_REDIRECT_URI:}
+    authorization-base-url: ${GSM_OAUTH_AUTHORIZATION_BASE_URL:https://oauth.authorization.datagsm.kr}
+    resource-base-url: ${GSM_OAUTH_RESOURCE_BASE_URL:https://oauth.resource.datagsm.kr}
 
 ai-server:
   base-url: ${AI_SERVER_BASE_URL:http://localhost:9000}

@@ -19,18 +19,22 @@ class AuthService(
     fun login(authCode: String): LoginResponse {
         val userInfo = gsmOAuthClient.authenticate(authCode)
 
-        val user = userRepository.findByStudentNumber(userInfo.studentNumber)
+        val user = userRepository.findByGsmAccountId(userInfo.gsmAccountId)
             ?.apply {
+                email = userInfo.email
                 name = userInfo.name
                 role = userInfo.role
+                studentNumber = userInfo.studentNumber
                 grade = userInfo.grade
                 classNo = userInfo.classNo
             }
             ?: userRepository.save(
                 User(
-                    studentNumber = userInfo.studentNumber,
+                    gsmAccountId = userInfo.gsmAccountId,
+                    email = userInfo.email,
                     name = userInfo.name,
                     role = userInfo.role,
+                    studentNumber = userInfo.studentNumber,
                     grade = userInfo.grade,
                     classNo = userInfo.classNo,
                 ),

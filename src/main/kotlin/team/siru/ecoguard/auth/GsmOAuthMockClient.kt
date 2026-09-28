@@ -7,10 +7,13 @@ import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.user.Role
 
 /**
- * 실제 dataGSM 연동 전까지 사용하는 임시 구현체.
+ * 실제 dataGSM 연동(GsmOAuthRealClient) 전까지, 또는 실 연동 없이 로컬에서
+ * 테스트하고 싶을 때 사용하는 목(mock) 구현체. `gsm.oauth.mock=true`(기본값)일 때 활성화된다.
  *
- * authCode 형식: "STUDENT|10101|홍길동|1|2" 또는 "TEACHER|20001|김선생"
- * (role|studentNumber|name|grade|classNo, grade/classNo는 교사인 경우 생략 가능)
+ * authCode 형식(파이프 구분): "role|gsmAccountId|email|name|studentNumber|grade|classNo"
+ * - 학생 예시: "STUDENT|1|10101@gsm.hs.kr|홍길동|1101|1|1"
+ * - 교사 예시: "TEACHER|2|teacher@gsm.hs.kr|김선생||"
+ * (studentNumber/grade/classNo는 교사인 경우 빈 값으로 둔다)
  * 형식에 맞지 않으면 OAUTH_FAILED 로 처리한다.
  */
 @Component
@@ -25,11 +28,13 @@ class GsmOAuthMockClient : GsmOAuthClient {
         val parts = authCode.split("|")
         val role = runCatching { Role.valueOf(parts.getOrNull(0)?.uppercase() ?: "") }
             .getOrElse { throw BusinessException(ErrorCode.OAUTH_FAILED) }
-        val studentNumber = parts.getOrNull(1) ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
-        val name = parts.getOrNull(2) ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
-        val grade = parts.getOrNull(3)?.toIntOrNull()
-        val classNo = parts.getOrNull(4)?.toIntOrNull()
+        val gsmAccountId = parts.getOrNull(1)?.toLongOrNull() ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
+        val email = parts.getOrNull(2) ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
+        val name = parts.getOrNull(3) ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
+        val studentNumber = parts.getOrNull(4)?.takeIf { it.isNotBlank() }
+        val grade = parts.getOrNull(5)?.toIntOrNull()
+        val classNo = parts.getOrNull(6)?.toIntOrNull()
 
-        return GsmUserInfo(studentNumber, name, role, grade, classNo)
+        return GsmUserInfo(gsmAccountId, email, name, role, studentNumber, grade, classNo)
     }
 }
