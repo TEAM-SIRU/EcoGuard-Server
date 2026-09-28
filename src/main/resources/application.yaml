@@ -1,3 +1,44 @@
 spring:
   application:
     name: EcoGuard-Server
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/ecoguard?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+jwt:
+  secret: ${JWT_SECRET:change-this-secret-in-production-please-make-it-long-enough}
+  access-token-validity-seconds: ${JWT_ACCESS_VALIDITY:7200}
+  refresh-token-validity-seconds: ${JWT_REFRESH_VALIDITY:1209600}
+
+gsm:
+  oauth:
+    mock: ${GSM_OAUTH_MOCK:true}
+    base-url: ${GSM_OAUTH_BASE_URL:}
+
+ai-server:
+  base-url: ${AI_SERVER_BASE_URL:http://localhost:9000}
+  evaluate-path: /api/v1/cleaning/evaluate
+  timeout-millis: 15000
+
+file-storage:
+  base-path: ${FILE_STORAGE_PATH:uploads}
+  public-url-prefix: /files
+
+logging:
+  level:
+    team.siru.ecoguard: INFO

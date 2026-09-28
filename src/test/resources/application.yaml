@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:ecoguard;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+jwt:
+  secret: test-secret-key-for-jwt-signing-please-make-it-long-enough-1234567890
+
+gsm:
+  oauth:
+    mock: true
+
+ai-server:
+  base-url: http://localhost:19999
