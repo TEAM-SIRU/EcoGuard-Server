@@ -213,7 +213,3 @@ Windows:
 ## Team
 
 TEAM SIRU
-
-## License
-
-This project is developed for educational purposes.
