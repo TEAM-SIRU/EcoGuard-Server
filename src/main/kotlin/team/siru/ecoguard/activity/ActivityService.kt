@@ -19,6 +19,7 @@ import team.siru.ecoguard.verification.CleaningTimeWindow
 import team.siru.ecoguard.verification.Verification
 import team.siru.ecoguard.verification.VerificationRepository
 import team.siru.ecoguard.verification.VerificationStatus
+import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -33,6 +34,7 @@ class ActivityService(
     private val userRepository: UserRepository,
     private val assignmentRepository: AssignmentRepository,
     private val verificationRepository: VerificationRepository,
+    private val clock: Clock,
 ) {
 
     @Transactional
@@ -50,7 +52,7 @@ class ActivityService(
     fun getMonthlyActivity(studentId: Long, month: YearMonth): MyActivityResponse {
         val from = month.atDay(1)
         val to = month.atEndOfMonth()
-        val records = buildRecords(studentId, from, to, LocalDateTime.now())
+        val records = buildRecords(studentId, from, to, LocalDateTime.now(clock))
             .filter { it.result != ActivityResult.UPCOMING }
             .sortedByDescending { it.date }
 
@@ -70,7 +72,7 @@ class ActivityService(
     /** 홈 화면의 이번 주 청소 현황 (N/5일) */
     @Transactional(readOnly = true)
     fun getWeeklyActivity(studentId: Long): WeeklyActivityResponse {
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         val monday = now.toLocalDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val friday = monday.plusDays((CLEANING_DAYS_PER_WEEK - 1).toLong())
         val days = buildRecords(studentId, monday, friday, now).map { WeeklyDay(it.date, it.result) }
