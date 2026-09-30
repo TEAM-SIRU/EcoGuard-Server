@@ -29,6 +29,9 @@ class NoticeService(
 
     @Transactional
     fun update(noticeId: Long, request: UpdateNoticeRequest) {
+        if (request.title?.isBlank() == true || request.content?.isBlank() == true) {
+            throw BusinessException(ErrorCode.TITLE_OR_CONTENT_EMPTY)
+        }
         val notice = getNoticeOrThrow(noticeId)
         request.title?.let { notice.title = it }
         request.content?.let { notice.content = it }
@@ -43,8 +46,14 @@ class NoticeService(
     fun getList(): List<NoticeListItemResponse> =
         noticeRepository.findAllByOrderByCreatedAtDesc().map(NoticeListItemResponse::from)
 
-    fun getDetail(noticeId: Long): NoticeDetailResponse =
-        NoticeDetailResponse.from(getNoticeOrThrow(noticeId))
+    fun getDetail(noticeId: Long): NoticeDetailResponse {
+        val notice = getNoticeOrThrow(noticeId)
+        return NoticeDetailResponse.from(
+            notice,
+            previousNoticeId = noticeRepository.findFirstByIdLessThanOrderByIdDesc(noticeId)?.id,
+            nextNoticeId = noticeRepository.findFirstByIdGreaterThanOrderByIdAsc(noticeId)?.id,
+        )
+    }
 
     private fun getNoticeOrThrow(noticeId: Long): Notice =
         noticeRepository.findById(noticeId).orElseThrow { BusinessException(ErrorCode.NOTICE_NOT_FOUND) }

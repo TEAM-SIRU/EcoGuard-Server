@@ -28,11 +28,23 @@ data class NoticeListItemResponse(
 }
 
 data class NoticeDetailResponse(
+    val noticeId: Long,
     val title: String,
     val content: String,
     val createdAt: LocalDateTime,
+    /** 이전(더 오래된) 공지 */
+    val previousNoticeId: Long?,
+    /** 다음(더 최근) 공지 */
+    val nextNoticeId: Long?,
 ) {
     companion object {
-        fun from(notice: Notice) = NoticeDetailResponse(notice.title, notice.content, notice.createdAt)
+        fun from(notice: Notice, previousNoticeId: Long?, nextNoticeId: Long?) = NoticeDetailResponse(
+            noticeId = notice.id,
+            title = notice.title,
+            content = notice.content,
+            createdAt = notice.createdAt,
+            previousNoticeId = previousNoticeId,
+            nextNoticeId = nextNoticeId,
+        )
     }
 }

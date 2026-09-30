@@ -16,6 +16,7 @@ import team.siru.ecoguard.appeal.dto.AppealDecisionRequest
 import team.siru.ecoguard.appeal.dto.AppealResponse
 import team.siru.ecoguard.appeal.dto.CreateAppealRequest
 import team.siru.ecoguard.appeal.dto.CreateAppealResponse
+import team.siru.ecoguard.appeal.dto.MyAppealResponse
 import team.siru.ecoguard.common.security.SecurityUtils
 
 @RestController
@@ -37,7 +38,7 @@ class AppealController(
     @PatchMapping("/appeals/{appealId}")
     @PreAuthorize("hasRole('TEACHER')")
     fun decide(@PathVariable appealId: Long, @Valid @RequestBody request: AppealDecisionRequest): ResponseEntity<Void> {
-        appealService.decide(appealId, request.decision)
+        appealService.decide(appealId, request.decision, request.reply)
         return ResponseEntity.ok().build()
     }
 
@@ -45,4 +46,9 @@ class AppealController(
     @PreAuthorize("hasRole('TEACHER')")
     fun getAppeals(@RequestParam(required = false) status: AppealStatus?): ResponseEntity<List<AppealResponse>> =
         ResponseEntity.ok(appealService.getAppeals(status))
+
+    @GetMapping("/appeals/me")
+    @PreAuthorize("hasRole('STUDENT')")
+    fun getMyAppeals(): ResponseEntity<List<MyAppealResponse>> =
+        ResponseEntity.ok(appealService.getMyAppeals(SecurityUtils.currentUserId()))
 }
