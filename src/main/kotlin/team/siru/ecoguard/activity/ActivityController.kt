@@ -13,6 +13,7 @@ import team.siru.ecoguard.activity.dto.WeeklyActivityResponse
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.security.SecurityUtils
+import java.time.Clock
 import java.time.DateTimeException
 import java.time.YearMonth
 
@@ -20,6 +21,7 @@ import java.time.YearMonth
 @RequestMapping("/api/v1")
 class ActivityController(
     private val activityService: ActivityService,
+    private val clock: Clock,
 ) {
 
     @GetMapping("/service-times/me")
@@ -50,7 +52,7 @@ class ActivityController(
         ResponseEntity.ok(activityService.getStudentMonthlyActivity(studentId, toYearMonth(year, month)))
 
     private fun toYearMonth(year: Int?, month: Int?): YearMonth {
-        val now = YearMonth.now()
+        val now = YearMonth.now(clock)
         return try {
             YearMonth.of(year ?: now.year, month ?: now.monthValue)
         } catch (e: DateTimeException) {
