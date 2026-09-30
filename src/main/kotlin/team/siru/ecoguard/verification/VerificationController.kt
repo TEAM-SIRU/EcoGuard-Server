@@ -24,7 +24,7 @@ class VerificationController(
     @PreAuthorize("hasRole('STUDENT')")
     fun submit(
         @RequestPart("photo") photo: MultipartFile,
-        @RequestParam areaId: Long,
+        @RequestParam(required = false) areaId: Long?,
     ): ResponseEntity<SubmitVerificationResponse> {
         val response = verificationService.submit(SecurityUtils.currentUserId(), areaId, photo)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)

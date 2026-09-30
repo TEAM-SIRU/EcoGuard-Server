@@ -92,8 +92,9 @@ class AiReviewService(
     }
 
     @Transactional(readOnly = true)
-    fun getReviewResult(verificationId: Long): ReviewResultResponse {
+    fun getReviewResult(verificationId: Long, studentId: Long?): ReviewResultResponse {
         val verification = verificationRepository.findById(verificationId)
+            .filter { studentId == null || it.student.id == studentId }
             .orElseThrow { BusinessException(ErrorCode.REVIEW_NOT_FOUND) }
         return ReviewResultResponse.from(verification)
     }

@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController
 import team.siru.ecoguard.aireview.dto.ManualReviewDecisionRequest
 import team.siru.ecoguard.aireview.dto.ManualReviewItemResponse
 import team.siru.ecoguard.aireview.dto.ReviewResultResponse
+import team.siru.ecoguard.common.security.SecurityUtils
+import team.siru.ecoguard.user.Role
 
 @RestController
 @RequestMapping("/api/v1/verifications")
@@ -35,7 +37,9 @@ class AiReviewController(
     }
 
     @GetMapping("/{verificationId}/review")
-    @PreAuthorize("hasRole('STUDENT')")
-    fun getReviewResult(@PathVariable verificationId: Long): ResponseEntity<ReviewResultResponse> =
-        ResponseEntity.ok(aiReviewService.getReviewResult(verificationId))
+    @PreAuthorize("hasAnyRole('STUDENT', 'TEACHER')")
+    fun getReviewResult(@PathVariable verificationId: Long): ResponseEntity<ReviewResultResponse> {
+        val requesterId = if (SecurityUtils.hasRole(Role.TEACHER)) null else SecurityUtils.currentUserId()
+        return ResponseEntity.ok(aiReviewService.getReviewResult(verificationId, requesterId))
+    }
 }

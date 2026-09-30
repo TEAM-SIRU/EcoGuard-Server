@@ -12,6 +12,9 @@ object CleaningTimeWindow {
         return !now.isBefore(start) && !now.isAfter(end)
     }
 
+    /** 해당 날짜의 인증 가능 시간이 이미 지났는지 여부 */
+    fun hasEnded(cleanTime: String?, now: LocalTime): Boolean = now.isAfter(parse(cleanTime).second)
+
     private fun parse(cleanTime: String?): Pair<LocalTime, LocalTime> {
         val parts = cleanTime?.split("~")
         if (parts == null || parts.size != 2) {

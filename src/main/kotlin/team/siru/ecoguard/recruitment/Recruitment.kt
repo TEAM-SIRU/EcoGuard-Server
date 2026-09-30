@@ -39,4 +39,16 @@ class Recruitment(
     fun isClosed(now: LocalDateTime): Boolean = endDate.isBefore(now)
 
     fun isOpen(now: LocalDateTime): Boolean = !now.isBefore(startDate) && !now.isAfter(endDate)
+
+    fun periodStatus(now: LocalDateTime): RecruitmentPeriodStatus = when {
+        now.isBefore(startDate) -> RecruitmentPeriodStatus.UPCOMING
+        isClosed(now) -> RecruitmentPeriodStatus.CLOSED
+        else -> RecruitmentPeriodStatus.OPEN
+    }
+}
+
+enum class RecruitmentPeriodStatus {
+    UPCOMING,
+    OPEN,
+    CLOSED,
 }

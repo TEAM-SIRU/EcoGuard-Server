@@ -26,7 +26,15 @@ class Appeal(
     @Column(nullable = false, columnDefinition = "TEXT")
     var content: String,
 
+    /** 같은 인증에 대한 N차 이의신청 */
+    @Column(nullable = false)
+    var round: Int,
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: AppealStatus = AppealStatus.PENDING,
+
+    /** 교사 답변 (반려 사유 등) */
+    @Column(columnDefinition = "TEXT")
+    var reply: String? = null,
 ) : BaseEntity()

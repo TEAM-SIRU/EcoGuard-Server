@@ -7,6 +7,7 @@ import team.siru.ecoguard.activity.ServiceTimeReason
 import team.siru.ecoguard.appeal.dto.AppealResponse
 import team.siru.ecoguard.appeal.dto.CreateAppealRequest
 import team.siru.ecoguard.appeal.dto.CreateAppealResponse
+import team.siru.ecoguard.appeal.dto.MyAppealResponse
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.user.UserRepository
@@ -23,41 +24,53 @@ class AppealService(
     private val activityService: ActivityService,
 ) {
 
+    /** 반려된 본인 인증에 대해 횟수 제한 없이 이의신청할 수 있다. 단, 검토 중인 신청이 있으면 결과가 나온 뒤 재신청한다. */
     @Transactional
     fun create(studentId: Long, verificationId: Long, request: CreateAppealRequest): CreateAppealResponse {
         val verification = verificationRepository.findById(verificationId)
+            .filter { it.student.id == studentId }
             .orElseThrow { BusinessException(ErrorCode.VERIFICATION_NOT_FOUND) }
-        if (verification.status == VerificationStatus.APPROVED) {
-            throw BusinessException(ErrorCode.APPEAL_ON_APPROVED_VERIFICATION)
+        when (verification.status) {
+            VerificationStatus.REJECTED -> Unit
+            VerificationStatus.APPROVED -> throw BusinessException(ErrorCode.APPEAL_ON_APPROVED_VERIFICATION)
+            else -> throw BusinessException(ErrorCode.APPEAL_NOT_ALLOWED)
+        }
+        if (appealRepository.existsByVerificationIdAndStatus(verificationId, AppealStatus.PENDING)) {
+            throw BusinessException(ErrorCode.APPEAL_ALREADY_PENDING)
         }
         val student = userRepository.findById(studentId).orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
 
+        val round = appealRepository.countByVerificationId(verificationId).toInt() + 1
         val appeal = appealRepository.save(
-            Appeal(verification = verification, student = student, content = request.content),
+            Appeal(verification = verification, student = student, content = request.content, round = round),
         )
-        return CreateAppealResponse(appeal.id, appeal.status)
+        return CreateAppealResponse(appeal.id, appeal.status, appeal.round)
     }
 
     @Transactional
-    fun decide(appealId: Long, decision: AppealStatus) {
+    fun decide(appealId: Long, decision: AppealStatus, reply: String?) {
+        if (decision == AppealStatus.PENDING) {
+            throw BusinessException(ErrorCode.INVALID_DECISION)
+        }
         val appeal = appealRepository.findById(appealId).orElseThrow { BusinessException(ErrorCode.APPEAL_NOT_FOUND) }
         if (appeal.status != AppealStatus.PENDING) {
             throw BusinessException(ErrorCode.ALREADY_PROCESSED)
         }
 
+        appeal.status = decision
+        appeal.reply = reply
         if (decision == AppealStatus.APPROVED) {
-            appeal.status = AppealStatus.APPROVED
             val verification = appeal.verification
-            verification.status = VerificationStatus.APPROVED
-            activityService.accumulate(
-                studentId = appeal.student.id,
-                minutes = APPEAL_APPROVED_MINUTES,
-                reason = ServiceTimeReason.APPEAL_APPROVED,
-                areaName = verification.area.name,
-                date = verification.verificationDate,
-            )
-        } else {
-            appeal.status = AppealStatus.REJECTED
+            if (verification.status != VerificationStatus.APPROVED) {
+                verification.status = VerificationStatus.APPROVED
+                activityService.accumulate(
+                    studentId = appeal.student.id,
+                    minutes = APPEAL_APPROVED_MINUTES,
+                    reason = ServiceTimeReason.APPEAL_APPROVED,
+                    areaName = verification.area.name,
+                    date = verification.verificationDate,
+                )
+            }
         }
     }
 
@@ -66,8 +79,12 @@ class AppealService(
         val appeals = if (status != null) {
             appealRepository.findByStatusOrderByCreatedAtAsc(status)
         } else {
-            appealRepository.findAll()
+            appealRepository.findAllByOrderByCreatedAtAscIdAsc()
         }
         return appeals.map(AppealResponse::from)
     }
+
+    @Transactional(readOnly = true)
+    fun getMyAppeals(studentId: Long): List<MyAppealResponse> =
+        appealRepository.findByStudentIdOrderByCreatedAtDescIdDesc(studentId).map(MyAppealResponse::from)
 }

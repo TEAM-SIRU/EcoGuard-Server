@@ -10,13 +10,17 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import team.siru.ecoguard.cleaningarea.CleaningArea
 import team.siru.ecoguard.common.BaseEntity
 import team.siru.ecoguard.user.User
 import java.time.LocalDate
 
 @Entity
-@Table(name = "verifications")
+@Table(
+    name = "verifications",
+    uniqueConstraints = [UniqueConstraint(columnNames = ["student_id", "verification_date"])],
+)
 class Verification(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)

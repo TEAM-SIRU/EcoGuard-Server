@@ -26,6 +26,8 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     RECRUITMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "모집 공고를 찾을 수 없습니다."),
     RECRUITMENT_CLOSED(HttpStatus.CONFLICT, "이미 종료된 모집입니다."),
     APPLICATION_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "신청자 정보 조회에 실패했습니다."),
+    CLASS_MISMATCH(HttpStatus.FORBIDDEN, "본인 학년/반의 모집에만 신청할 수 있습니다."),
+    MAX_COUNT_BELOW_APPLICANTS(HttpStatus.CONFLICT, "모집 인원을 현재 신청 인원보다 적게 설정할 수 없습니다."),
 
     // cleaning-areas
     INACTIVE_AREA(HttpStatus.BAD_REQUEST, "비활성 구역에는 배정할 수 없습니다."),
@@ -40,6 +42,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     GALLERY_UPLOAD_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "갤러리에서 업로드한 사진은 허용되지 않습니다."),
     OUT_OF_CERTIFICATION_TIME(HttpStatus.FORBIDDEN, "인증 시간이 아닙니다."),
     ALREADY_SUBMITTED_TODAY(HttpStatus.CONFLICT, "오늘 이미 제출했습니다."),
+    NOT_ASSIGNED_AREA(HttpStatus.FORBIDDEN, "배정된 구역에서만 인증할 수 있습니다."),
     VERIFICATION_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "인증 내역 조회에 실패했습니다."),
     VERIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "인증 내역을 찾을 수 없습니다."),
 
@@ -55,6 +58,9 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
 
     // appeals
     APPEAL_ON_APPROVED_VERIFICATION(HttpStatus.CONFLICT, "이미 승인된 인증에는 이의신청할 수 없습니다."),
+    APPEAL_NOT_ALLOWED(HttpStatus.CONFLICT, "반려된 인증에만 이의신청할 수 있습니다."),
+    APPEAL_ALREADY_PENDING(HttpStatus.CONFLICT, "검토 중인 이의신청이 있습니다."),
+    INVALID_DECISION(HttpStatus.BAD_REQUEST, "승인 또는 반려만 선택할 수 있습니다."),
     ALREADY_PROCESSED(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
     APPEAL_FETCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이의신청 목록 조회에 실패했습니다."),
     APPEAL_NOT_FOUND(HttpStatus.NOT_FOUND, "이의신청을 찾을 수 없습니다."),
