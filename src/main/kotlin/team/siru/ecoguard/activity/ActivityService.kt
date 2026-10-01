@@ -39,12 +39,10 @@ class ActivityService(
 
     @Transactional
     fun accumulate(studentId: Long, minutes: Int, reason: ServiceTimeReason, areaName: String?, date: LocalDate = LocalDate.now()) {
-        runCatching {
-            val student = userRepository.findById(studentId).orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
-            serviceTimeLogRepository.save(
-                ServiceTimeLog(student = student, minutes = minutes, reason = reason, date = date, areaName = areaName),
-            )
-        }.getOrElse { throw BusinessException(ErrorCode.ACCUMULATION_FAILED) }
+        val student = userRepository.findById(studentId).orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
+        serviceTimeLogRepository.save(
+            ServiceTimeLog(student = student, minutes = minutes, reason = reason, date = date, areaName = areaName),
+        )
     }
 
     /** 월별 활동 기록: 날짜/구역/인증 결과, 승인/반려/미제출 집계, 누적 시간 */
@@ -52,15 +50,19 @@ class ActivityService(
     fun getMonthlyActivity(studentId: Long, month: YearMonth): MyActivityResponse {
         val from = month.atDay(1)
         val to = month.atEndOfMonth()
-        val records = buildRecords(studentId, from, to, LocalDateTime.now(clock))
+        val allDays = buildRecords(studentId, from, to, LocalDateTime.now(clock))
+        val records = allDays
             .filter { it.result != ActivityResult.UPCOMING }
             .sortedByDescending { it.date }
 
         return MyActivityResponse(
             totalMinutes = serviceTimeLogRepository.sumMinutesByStudentId(studentId),
-            month = month,
+            year = month.year,
+            month = month.monthValue,
             monthlyMinutes = records.sumOf { it.minutes },
             summary = ActivitySummary(
+                completedDays = records.count { it.result == ActivityResult.APPROVED },
+                requiredDays = allDays.size,
                 approvedCount = records.count { it.result == ActivityResult.APPROVED },
                 rejectedCount = records.count { it.result == ActivityResult.REJECTED },
                 notSubmittedCount = records.count { it.result == ActivityResult.NOT_SUBMITTED },
@@ -80,7 +82,7 @@ class ActivityService(
             weekStart = monday,
             weekEnd = friday,
             completedDays = days.count { it.result == ActivityResult.APPROVED },
-            totalDays = CLEANING_DAYS_PER_WEEK,
+            requiredDays = CLEANING_DAYS_PER_WEEK,
             days = days,
         )
     }

@@ -1,7 +1,6 @@
 package team.siru.ecoguard.activity.dto
 
 import java.time.LocalDate
-import java.time.YearMonth
 
 enum class ActivityResult {
     APPROVED,
@@ -26,6 +25,10 @@ data class ActivityRecord(
 )
 
 data class ActivitySummary(
+    /** 이번 달 인증 승인된 날 수 */
+    val completedDays: Int,
+    /** 이번 달 청소해야 하는 날 수 (배정 이후 평일) */
+    val requiredDays: Int,
     val approvedCount: Int,
     val rejectedCount: Int,
     val notSubmittedCount: Int,
@@ -34,7 +37,8 @@ data class ActivitySummary(
 data class MyActivityResponse(
     /** 전체 누적 봉사시간(분) */
     val totalMinutes: Long,
-    val month: YearMonth,
+    val year: Int,
+    val month: Int,
     val monthlyMinutes: Int,
     val summary: ActivitySummary,
     val records: List<ActivityRecord>,
@@ -50,7 +54,7 @@ data class WeeklyActivityResponse(
     val weekEnd: LocalDate,
     /** 이번 주 인증 승인된 날 수 (N/5일의 N) */
     val completedDays: Int,
-    val totalDays: Int,
+    val requiredDays: Int,
     val days: List<WeeklyDay>,
 )
 
