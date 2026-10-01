@@ -1,7 +1,6 @@
 package team.siru.ecoguard.appeal.dto
 
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
 import team.siru.ecoguard.appeal.Appeal
 import team.siru.ecoguard.appeal.AppealStatus
 import java.time.LocalDate
@@ -19,8 +18,8 @@ data class CreateAppealResponse(
 )
 
 data class AppealDecisionRequest(
-    @field:NotNull
-    val decision: AppealStatus,
+    /** APPROVED 또는 REJECTED. 그 외 값은 INVALID_DECISION 으로 응답하기 위해 문자열로 받는다. */
+    val decision: String? = null,
     /** 교사 답변. 반려 시 학생에게 사유로 보여진다. */
     val reply: String? = null,
 )

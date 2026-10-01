@@ -28,12 +28,9 @@ class AppealService(
     @Transactional
     fun create(studentId: Long, verificationId: Long, request: CreateAppealRequest): CreateAppealResponse {
         val verification = verificationRepository.findById(verificationId)
-            .filter { it.student.id == studentId }
             .orElseThrow { BusinessException(ErrorCode.VERIFICATION_NOT_FOUND) }
-        when (verification.status) {
-            VerificationStatus.REJECTED -> Unit
-            VerificationStatus.APPROVED -> throw BusinessException(ErrorCode.APPEAL_ON_APPROVED_VERIFICATION)
-            else -> throw BusinessException(ErrorCode.APPEAL_NOT_ALLOWED)
+        if (verification.student.id != studentId || verification.status != VerificationStatus.REJECTED) {
+            throw BusinessException(ErrorCode.APPEAL_NOT_ALLOWED)
         }
         if (appealRepository.existsByVerificationIdAndStatus(verificationId, AppealStatus.PENDING)) {
             throw BusinessException(ErrorCode.APPEAL_ALREADY_PENDING)
@@ -48,10 +45,9 @@ class AppealService(
     }
 
     @Transactional
-    fun decide(appealId: Long, decision: AppealStatus, reply: String?) {
-        if (decision == AppealStatus.PENDING) {
-            throw BusinessException(ErrorCode.INVALID_DECISION)
-        }
+    fun decide(appealId: Long, rawDecision: String?, reply: String?) {
+        val decision = AppealStatus.entries.firstOrNull { it.name == rawDecision && it != AppealStatus.PENDING }
+            ?: throw BusinessException(ErrorCode.INVALID_DECISION)
         val appeal = appealRepository.findById(appealId).orElseThrow { BusinessException(ErrorCode.APPEAL_NOT_FOUND) }
         if (appeal.status != AppealStatus.PENDING) {
             throw BusinessException(ErrorCode.ALREADY_PROCESSED)

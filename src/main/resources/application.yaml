@@ -46,22 +46,106 @@ file-storage:
   public-url-prefix: /files
 
 # 청소구역(학교 도면) 초기 데이터. 구역을 만드는 API가 없으므로 여기에 실제 학교
-# 구역을 정의해두면 서버 시작 시 자동으로 DB에 채워진다 (zone-code 기준 중복 생성 안 함).
-# zone-code는 AI 서버의 zone_id와 반드시 일치해야 한다. 아래는 예시이므로 실제 값으로 교체할 것.
+# 구역을 정의해두면 서버 시작 시 자동으로 DB에 채워진다 (zone-code 기준, 이미 있으면 활성 여부 외 값 갱신).
+# zone-code는 AI 서버의 zone_id와 반드시 일치해야 한다.
+# 1차 운영 범위: 1학기 구역 + 2학기 구역을 합친 18개 구역 (노션 "청소 구역" 페이지 기준).
+# model-ready 기본값은 false이며, AI 모델 학습이 끝난 구역은 model-ready: true 를 추가해야 활성화할 수 있다.
+# x, y 는 학교 도면 상 좌표로, 도면 좌표가 확정되면 채워 넣을 것.
 cleaning-area-seed:
   areas:
-    - zone-code: zone_A
-      name: 1학년 복도
-      description: 1학년 교실 앞 복도
+    # ── 1·2학기 공통 ──
+    - zone-code: main_stair_a
+      name: 본관 계단 A
+      description: 본관 계단 A 1층→4층 (1→2층, 2→3층, 3→4층 구간 / 1층 현관 제외)
       clean-time: "08:00~08:10"
-      x: 10
-      y: 20
-    - zone-code: zone_B
-      name: 2학년 복도
-      description: 2학년 교실 앞 복도
+      semester: COMMON
+    - zone-code: main_entrance_a
+      name: 본관 1층 계단 A쪽 현관 및 신발장
+      description: A쪽 현관, 신발장, 금봉관 연결통로 방향
       clean-time: "08:00~08:10"
-      x: 30
-      y: 20
+      semester: COMMON
+    - zone-code: main_stair_b
+      name: 본관 계단 B
+      description: 본관 계단 B 1층→4층 (1→2층, 2→3층, 3→4층 구간 / 1층 현관 제외)
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: main_stair_c
+      name: 본관 계단 C
+      description: 본관 계단 C 1층→4층 (1→2층, 2→3층, 3→4층 구간 / 1층 현관 제외)
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: practice_stair_d
+      name: 본관(실습동) 계단 D
+      description: 본관(실습동) 계단 D 1층→3층 (1층 현관, 1→2층, 2→3층 구간)
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: geumbong_stair_e
+      name: 금봉관 계단 E
+      description: 금봉관 계단 E 1층→4층 (1→2층, 2→3층, 3→4층 구간, 4층 철문 앞 / 1층 현관 제외)
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: geumbong_corridor_f1
+      name: 금봉관 1층 복도
+      description: 시청각실 앞부터 급식실 방향 현관까지 (현관 쓰레기통 주변 포함)
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: connector_f2
+      name: 본관-금봉관 연결통로 2층
+      description: 본관 쪽부터 금봉관 쪽까지 연결통로 전체
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: connector_f3
+      name: 본관-금봉관 연결통로 3층
+      description: 본관 쪽부터 금봉관 쪽까지 연결통로 전체
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: geumbong_corridor_f2
+      name: 금봉관 2층 ㄱ자 복도
+      description: 위클래스 앞부터 ㄱ자로 꺾이는 곳을 지나 끝까지
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: geumbong_corridor_f3
+      name: 금봉관 3층 ㄱ자 복도
+      description: 도서관 앞부터 ㄱ자로 꺾이는 곳을 지나 끝까지
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    - zone-code: main_fitness_room_f1
+      name: 본관 1층 체력단련실
+      description: 체력단련실 입구 쪽 및 내부
+      clean-time: "08:00~08:10"
+      semester: COMMON
+    # ── 1학기에만 있던 구역 ──
+    - zone-code: main_entrance_b
+      name: 본관 1층 계단 B쪽 현관 및 외부 현관
+      description: B쪽 현관 안쪽과 외부 현관
+      clean-time: "08:00~08:10"
+      semester: FIRST
+    - zone-code: main_entrance_c
+      name: 본관 1층 계단 C쪽 현관 및 외부 현관
+      description: C쪽 현관 안쪽과 외부 현관
+      clean-time: "08:00~08:10"
+      semester: FIRST
+    - zone-code: main_entrance_d
+      name: 본관 1층 계단 D쪽 현관 및 신발장
+      description: D쪽 현관, 신발장
+      clean-time: "08:00~08:10"
+      semester: FIRST
+    - zone-code: connector_f1
+      name: 본관-금봉관 연결통로 1층
+      description: 본관 쪽부터 금봉관 쪽까지 연결통로 전체
+      clean-time: "08:00~08:10"
+      semester: FIRST
+    # ── 2학기에만 있던 구역 ──
+    - zone-code: main_corridor_f3
+      name: 본관 3층 복도 + 홈베이스
+      description: 본관 3층 복도 전체와 홈베이스
+      clean-time: "08:00~08:10"
+      semester: SECOND
+    - zone-code: main_corridor_f4
+      name: 본관 4층 복도 + 홈베이스
+      description: 본관 4층 복도 전체와 홈베이스
+      clean-time: "08:00~08:10"
+      semester: SECOND
 
 logging:
   level:

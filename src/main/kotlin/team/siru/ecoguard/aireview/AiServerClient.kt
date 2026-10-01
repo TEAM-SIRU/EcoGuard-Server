@@ -8,9 +8,11 @@ import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.RestClient
+import tools.jackson.databind.ObjectMapper
 
 sealed interface AiEvaluateOutcome {
-    data class Success(val response: AiEvaluateResponse) : AiEvaluateOutcome
+    /** [rawResponse]는 AI 서버가 보낸 응답 원문(JSON)으로, AI_REVIEW.raw_response에 그대로 저장한다. */
+    data class Success(val response: AiEvaluateResponse, val rawResponse: String) : AiEvaluateOutcome
     data class NeedsManualReview(val reason: ManualReviewReason) : AiEvaluateOutcome
 }
 
@@ -18,6 +20,7 @@ sealed interface AiEvaluateOutcome {
 class AiServerClient(
     private val aiServerRestClient: RestClient,
     private val properties: AiServerProperties,
+    private val objectMapper: ObjectMapper,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -32,14 +35,16 @@ class AiServerClient(
         }.build()
 
         return try {
-            val response = aiServerRestClient.post()
+            val rawResponse = aiServerRestClient.post()
                 .uri(properties.evaluatePath)
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(body)
                 .retrieve()
-                .body(AiEvaluateResponse::class.java)
-                ?: return AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.TIMEOUT)
-            AiEvaluateOutcome.Success(response)
+                .body(String::class.java)
+            if (rawResponse.isNullOrBlank()) {
+                return AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.TIMEOUT)
+            }
+            AiEvaluateOutcome.Success(objectMapper.readValue(rawResponse, AiEvaluateResponse::class.java), rawResponse)
         } catch (e: HttpServerErrorException) {
             log.warn("AI server unavailable (status={})", e.statusCode, e)
             AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.MODEL_NOT_READY)

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.NotNull
 import team.siru.ecoguard.cleaningarea.Assignment
 import team.siru.ecoguard.cleaningarea.CleaningArea
+import team.siru.ecoguard.cleaningarea.CleaningAreaSemester
 import team.siru.ecoguard.user.User
 
 data class Coordinates(
@@ -27,6 +28,7 @@ data class AreaMapResponse(
     val name: String,
     val description: String?,
     val cleanTime: String?,
+    val semester: CleaningAreaSemester,
     val coordinates: Coordinates,
     val isActive: Boolean,
     val assignedStudents: List<AssignedStudent>,
@@ -38,6 +40,7 @@ data class AreaMapResponse(
             name = area.name,
             description = area.description,
             cleanTime = area.cleanTime,
+            semester = area.semester,
             coordinates = Coordinates(area.x, area.y),
             isActive = area.isActive,
             assignedStudents = assignments.map { AssignedStudent.from(it.student) },

@@ -110,9 +110,13 @@ class ActivityRecordIntegrationTests @Autowired constructor(
     fun `monthly record counts approved, rejected and not-submitted weekdays after the window closes`() {
         mockMvc.get("/api/v1/service-times/me") { bearer(studentToken) }.andExpect {
             status { isOk() }
-            jsonPath("$.month") { value("2026-09") }
+            jsonPath("$.year") { value(2026) }
+            jsonPath("$.month") { value(9) }
             jsonPath("$.totalMinutes") { value(40) }
             jsonPath("$.monthlyMinutes") { value(30) }
+            jsonPath("$.summary.completedDays") { value(3) }
+            // 활동 시작(9/7) 이후 9월 평일 수
+            jsonPath("$.summary.requiredDays") { value(18) }
             jsonPath("$.summary.approvedCount") { value(3) }
             jsonPath("$.summary.rejectedCount") { value(1) }
             jsonPath("$.summary.notSubmittedCount") { value(4) }
@@ -147,7 +151,7 @@ class ActivityRecordIntegrationTests @Autowired constructor(
     fun `other months are selectable and days before activity started are excluded`() {
         mockMvc.get("/api/v1/service-times/me?year=2026&month=8") { bearer(studentToken) }.andExpect {
             status { isOk() }
-            jsonPath("$.month") { value("2026-08") }
+            jsonPath("$.month") { value(8) }
             jsonPath("$.totalMinutes") { value(40) }
             jsonPath("$.records.length()") { value(0) }
         }
@@ -163,7 +167,7 @@ class ActivityRecordIntegrationTests @Autowired constructor(
             jsonPath("$.weekStart") { value("2026-09-14") }
             jsonPath("$.weekEnd") { value("2026-09-18") }
             jsonPath("$.completedDays") { value(1) }
-            jsonPath("$.totalDays") { value(5) }
+            jsonPath("$.requiredDays") { value(5) }
             jsonPath("$.days.length()") { value(5) }
             jsonPath("$.days[0].result") { value("APPROVED") }
             jsonPath("$.days[1].result") { value("NOT_SUBMITTED") }
