@@ -37,7 +37,7 @@ class AiReviewService(
                 aiReviewRepository.save(
                     AiReview(
                         verification = verification,
-                        rawResponse = response.toString(),
+                        rawResponse = outcome.rawResponse,
                         decision = response.decision,
                         isPassed = response.isPassed,
                     ),
