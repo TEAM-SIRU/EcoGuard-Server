@@ -45,7 +45,7 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
 
         // Missing authentication must not reach protected routes.
         mockMvc.get("/api/v1/notices")
-            .andExpect { status { isUnauthorized() } }
+            .andExpect { status { isUnauthorized() }; content { string("") } }
 
         // Students may read notices but cannot create them.
         mockMvc.post("/api/v1/notices") {
