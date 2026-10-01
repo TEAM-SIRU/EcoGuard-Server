@@ -48,7 +48,7 @@ class CleaningAreaSeederIntegrationTests @Autowired constructor(
         assertEquals(12, properties.areas.count { it.semester == CleaningAreaSemester.COMMON })
         assertEquals(4, properties.areas.count { it.semester == CleaningAreaSemester.FIRST })
         assertEquals(2, properties.areas.count { it.semester == CleaningAreaSemester.SECOND })
-        assertTrue(properties.areas.all { it.cleanTime == "08:00~08:10" })
+        assertTrue(properties.areas.all { it.cleanTime == "07:20~08:10" })
     }
 
     @Test
