@@ -1,7 +1,5 @@
 package team.siru.ecoguard.recruitment.dto
 
-import jakarta.validation.constraints.Max
-import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import team.siru.ecoguard.recruitment.ApplicationStatus
@@ -17,7 +15,8 @@ data class CreateRecruitmentRequest(
     val grade: Int,
     @field:NotNull
     val classNo: Int,
-    @field:NotNull @field:Min(1) @field:Max(6)
+    /** 범위(1~6명) 검사는 명세의 INVALID_MAX_COUNT 응답을 위해 서비스에서 한다. */
+    @field:NotNull
     val maxCount: Int,
     @field:NotNull
     val startDate: LocalDateTime,
@@ -104,10 +103,11 @@ data class RecruitmentSummaryResponse(
     val period: RecruitmentPeriod,
     val periodStatus: RecruitmentPeriodStatus,
     val maxCount: Int,
-    val currentApplicants: Long,
+    val applicantCount: Long,
+    val isFull: Boolean,
 ) {
     companion object {
-        fun of(recruitment: Recruitment, currentApplicants: Long, now: LocalDateTime) = RecruitmentSummaryResponse(
+        fun of(recruitment: Recruitment, applicantCount: Long, now: LocalDateTime) = RecruitmentSummaryResponse(
             recruitmentId = recruitment.id,
             semester = recruitment.semester,
             grade = recruitment.grade,
@@ -115,7 +115,8 @@ data class RecruitmentSummaryResponse(
             period = RecruitmentPeriod(recruitment.startDate, recruitment.endDate),
             periodStatus = recruitment.periodStatus(now),
             maxCount = recruitment.maxCount,
-            currentApplicants = currentApplicants,
+            applicantCount = applicantCount,
+            isFull = applicantCount >= recruitment.maxCount,
         )
     }
 }

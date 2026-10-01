@@ -101,7 +101,17 @@ class SpecFlowIntegrationTests @Autowired constructor(
         }
 
         mockMvc.get("/api/v1/recruitments") { bearer(teacher) }
-            .andExpect { status { isOk() }; jsonPath("$[0].currentApplicants") { value(1) } }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$[0].applicantCount") { value(1) }
+                jsonPath("$[0].isFull") { value(true) }
+            }
+
+        mockMvc.post("/api/v1/recruitments") {
+            bearer(teacher)
+            json("""{"semester":"2026-2","grade":1,"classNo":3,"maxCount":7,
+                "startDate":"${LocalDateTime.now()}","endDate":"${LocalDateTime.now().plusDays(1)}"}""")
+        }.andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_MAX_COUNT") } }
     }
 
     @Test
