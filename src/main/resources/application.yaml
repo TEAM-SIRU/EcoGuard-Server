@@ -39,6 +39,11 @@ gsm:
     authorization-base-url: ${GSM_OAUTH_AUTHORIZATION_BASE_URL:https://oauth.authorization.datagsm.kr}
     resource-base-url: ${GSM_OAUTH_RESOURCE_BASE_URL:https://oauth.resource.datagsm.kr}
 
+# 앱 스토어 심사용 데모 학생 계정. 심사 기간에만 켜고 끝나면 반드시 끈다.
+demo-account:
+  enabled: ${DEMO_ACCOUNT_ENABLED:false}
+  auth-code: ${DEMO_ACCOUNT_AUTH_CODE:}
+
 cors:
   # 쉼표로 구분한 허용 Origin 목록
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
