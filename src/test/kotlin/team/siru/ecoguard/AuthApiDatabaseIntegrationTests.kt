@@ -97,6 +97,37 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `logout revokes earlier tokens but a fresh login works`() {
+        fun loginTokens(): Pair<String, String> {
+            val body = objectMapper.readTree(
+                mockMvc.post("/api/v1/auth/login") {
+                    contentType = MediaType.APPLICATION_JSON
+                    content = objectMapper.writeValueAsString(mapOf("authCode" to "STUDENT|9004|s4@test.local|Student|1101|1|1"))
+                }.andReturn().response.contentAsString,
+            )
+            return body.get("accessToken").asText() to body.get("refreshToken").asText()
+        }
+        val (accessToken, refreshToken) = loginTokens()
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $accessToken") }
+            .andExpect { status { isOk() } }
+
+        mockMvc.post("/api/v1/auth/logout") { header("Authorization", "Bearer $accessToken") }
+            .andExpect { status { isOk() } }
+
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $accessToken") }
+            .andExpect { status { isUnauthorized() } }
+        mockMvc.post("/api/v1/auth/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(mapOf("refreshToken" to refreshToken))
+        }.andExpect { status { isUnauthorized() } }
+
+        Thread.sleep(5)
+        val (newAccessToken, _) = loginTokens()
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $newAccessToken") }
+            .andExpect { status { isOk() } }
+    }
+
+    @Test
     fun `refresh token issues a working token pair and rejects invalid tokens`() {
         val loginBody = objectMapper.readTree(
             mockMvc.post("/api/v1/auth/login") {

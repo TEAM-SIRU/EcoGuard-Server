@@ -35,6 +35,8 @@ class JwtTokenProvider(
             .subject(userId.toString())
             .claim("role", role.name)
             .claim("type", tokenType)
+            // iat는 초 단위라 같은 초 안의 로그아웃과 구분되지 않으므로 밀리초 값을 따로 넣는다.
+            .claim(CLAIM_ISSUED_AT_MS, now.toEpochMilli())
             .issuedAt(Date.from(now))
             .expiration(Date.from(now.plusSeconds(validitySeconds)))
             .signWith(key)
@@ -55,9 +57,12 @@ class JwtTokenProvider(
 
     fun isAccessToken(claims: Claims): Boolean = claims["type"] == TOKEN_TYPE_ACCESS
 
+    fun issuedAtMillis(claims: Claims): Long = (claims[CLAIM_ISSUED_AT_MS] as? Number)?.toLong() ?: 0L
+
     fun isRefreshToken(claims: Claims): Boolean = claims["type"] == TOKEN_TYPE_REFRESH
 
     companion object {
+        private const val CLAIM_ISSUED_AT_MS = "iatMs"
         const val TOKEN_TYPE_ACCESS = "access"
         const val TOKEN_TYPE_REFRESH = "refresh"
     }

@@ -10,6 +10,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 
 class JwtAuthenticationFilter(
     private val jwtTokenProvider: JwtTokenProvider,
+    private val tokenRevocationChecker: TokenRevocationChecker,
 ) : OncePerRequestFilter() {
 
     override fun doFilterInternal(
@@ -21,7 +22,9 @@ class JwtAuthenticationFilter(
             val claims = jwtTokenProvider.parseClaims(token)
             val userId = claims?.subject?.toLongOrNull()
             val role = claims?.get("role") as? String
-            if (claims != null && userId != null && role != null && jwtTokenProvider.isAccessToken(claims)) {
+            if (claims != null && userId != null && role != null && jwtTokenProvider.isAccessToken(claims) &&
+                !tokenRevocationChecker.isRevoked(userId, claims)
+            ) {
                 val authentication = UsernamePasswordAuthenticationToken(
                     userId,
                     null,

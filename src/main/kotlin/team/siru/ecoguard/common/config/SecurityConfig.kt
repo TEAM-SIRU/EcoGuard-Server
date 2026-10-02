@@ -15,12 +15,14 @@ import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 import team.siru.ecoguard.common.security.JwtAuthenticationFilter
 import team.siru.ecoguard.common.security.JwtTokenProvider
+import team.siru.ecoguard.common.security.TokenRevocationChecker
 
 @Configuration
 @EnableMethodSecurity
 class SecurityConfig(
     @Value("\${cors.allowed-origins:http://localhost:3000}") private val allowedOrigins: List<String>,
     private val jwtTokenProvider: JwtTokenProvider,
+    private val tokenRevocationChecker: TokenRevocationChecker,
 ) {
 
     @Bean
@@ -35,7 +37,7 @@ class SecurityConfig(
                 it.requestMatchers("/files/**").permitAll()
                 it.anyRequest().authenticated()
             }
-            .addFilterBefore(JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterBefore(JwtAuthenticationFilter(jwtTokenProvider, tokenRevocationChecker), UsernamePasswordAuthenticationFilter::class.java)
             .exceptionHandling {
                 it.authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             }

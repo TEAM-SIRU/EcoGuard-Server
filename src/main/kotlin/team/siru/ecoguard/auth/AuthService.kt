@@ -8,6 +8,7 @@ import team.siru.ecoguard.auth.dto.UserSummaryResponse
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.security.JwtTokenProvider
+import team.siru.ecoguard.common.security.TokenRevocationChecker
 import team.siru.ecoguard.user.User
 import team.siru.ecoguard.user.UserRepository
 
@@ -16,6 +17,7 @@ class AuthService(
     private val gsmOAuthClient: GsmOAuthClient,
     private val userRepository: UserRepository,
     private val jwtTokenProvider: JwtTokenProvider,
+    private val tokenRevocationChecker: TokenRevocationChecker,
 ) {
 
     @Transactional
@@ -58,13 +60,19 @@ class AuthService(
             ?: throw BusinessException(ErrorCode.UNAUTHORIZED)
         val userId = claims.subject.toLongOrNull() ?: throw BusinessException(ErrorCode.UNAUTHORIZED)
         val user = userRepository.findById(userId).orElseThrow { BusinessException(ErrorCode.UNAUTHORIZED) }
+        if (tokenRevocationChecker.isRevoked(user.id, claims)) throw BusinessException(ErrorCode.UNAUTHORIZED)
 
         val tokenPair = jwtTokenProvider.generateTokenPair(user.id, user.role)
         return TokenResponse(tokenPair.accessToken, tokenPair.refreshToken)
     }
 
-    fun logout() {
-        // 서버는 상태를 저장하지 않는 JWT를 사용하므로 별도의 무효화 처리가 없다.
-        // 추후 리프레시 토큰 블랙리스트가 도입되면 이 지점에서 처리한다.
+    /**
+     * 이 시점 이전에 발급된 이 사용자의 모든 토큰(액세스/리프레시)을 무효로 만든다.
+     * 기기 단위로 구분하지 않으므로 다른 기기의 로그인도 함께 풀린다. 분실/유출 대응에도 같은 방식으로 쓴다.
+     */
+    @Transactional
+    fun logout(userId: Long) {
+        val user = userRepository.findById(userId).orElseThrow { BusinessException(ErrorCode.UNAUTHORIZED) }
+        user.tokensValidAfter = System.currentTimeMillis()
     }
 }

@@ -10,6 +10,7 @@ import team.siru.ecoguard.auth.dto.LoginRequest
 import team.siru.ecoguard.auth.dto.LoginResponse
 import team.siru.ecoguard.auth.dto.RefreshRequest
 import team.siru.ecoguard.auth.dto.TokenResponse
+import team.siru.ecoguard.common.security.SecurityUtils
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -30,7 +31,7 @@ class AuthController(
 
     @PostMapping("/logout")
     fun logout(): ResponseEntity<Void> {
-        authService.logout()
+        authService.logout(SecurityUtils.currentUserId())
         return ResponseEntity.ok().build()
     }
 }
