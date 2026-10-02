@@ -48,7 +48,7 @@ class AppealService(
     fun decide(appealId: Long, rawDecision: String?, reply: String?) {
         val decision = AppealStatus.entries.firstOrNull { it.name == rawDecision && it != AppealStatus.PENDING }
             ?: throw BusinessException(ErrorCode.INVALID_DECISION)
-        val appeal = appealRepository.findById(appealId).orElseThrow { BusinessException(ErrorCode.APPEAL_NOT_FOUND) }
+        val appeal = appealRepository.findWithLockById(appealId) ?: throw BusinessException(ErrorCode.APPEAL_NOT_FOUND)
         if (appeal.status != AppealStatus.PENDING) {
             throw BusinessException(ErrorCode.ALREADY_PROCESSED)
         }

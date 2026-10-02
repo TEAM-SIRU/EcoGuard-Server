@@ -25,11 +25,17 @@ class AiServerClient(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    private companion object {
+        // 존재하지 않는 구역 / 처리할 수 없는 요청으로 보는 상태 코드. 그 외 4xx(인증, 용량 등)는 구역 문제가 아니다.
+        val UNKNOWN_ZONE_STATUSES = setOf(400, 404, 422)
+    }
+
     fun evaluate(imageBytes: ByteArray, zoneId: String, userId: String?): AiEvaluateOutcome {
         val body = MultipartBodyBuilder().apply {
+            val isPng = imageBytes.size > 4 && imageBytes[0] == 0x89.toByte() && imageBytes[1] == 0x50.toByte()
             part("image", object : ByteArrayResource(imageBytes) {
-                override fun getFilename() = "photo.jpg"
-            }, MediaType.IMAGE_JPEG)
+                override fun getFilename() = if (isPng) "photo.png" else "photo.jpg"
+            }, if (isPng) MediaType.IMAGE_PNG else MediaType.IMAGE_JPEG)
             part("zone_id", zoneId)
             userId?.let { part("user_id", it) }
         }.build()
@@ -50,7 +56,9 @@ class AiServerClient(
             AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.MODEL_NOT_READY)
         } catch (e: HttpClientErrorException) {
             log.warn("AI server rejected request (status={})", e.statusCode, e)
-            AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.UNKNOWN_ZONE)
+            AiEvaluateOutcome.NeedsManualReview(
+                if (e.statusCode.value() in UNKNOWN_ZONE_STATUSES) ManualReviewReason.UNKNOWN_ZONE else ManualReviewReason.TIMEOUT,
+            )
         } catch (e: Exception) {
             log.warn("AI server call failed", e)
             AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.TIMEOUT)

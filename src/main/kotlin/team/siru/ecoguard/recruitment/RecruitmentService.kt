@@ -16,6 +16,7 @@ import team.siru.ecoguard.recruitment.dto.CurrentRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.RecruitmentSummaryResponse
 import team.siru.ecoguard.recruitment.dto.UpdateRecruitmentRequest
 import team.siru.ecoguard.user.UserRepository
+import java.time.Clock
 import java.time.LocalDateTime
 
 private const val MAX_COUNT_PER_CLASS = 6
@@ -26,6 +27,7 @@ class RecruitmentService(
     private val applicationRepository: RecruitmentApplicationRepository,
     private val userRepository: UserRepository,
     private val assignmentRepository: AssignmentRepository,
+    private val clock: Clock,
 ) {
 
     @Transactional
@@ -55,7 +57,7 @@ class RecruitmentService(
     @Transactional
     fun updateRecruitment(recruitmentId: Long, request: UpdateRecruitmentRequest) {
         val recruitment = getRecruitmentOrThrow(recruitmentId)
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         if (recruitment.isClosed(now)) {
             throw BusinessException(ErrorCode.RECRUITMENT_CLOSED)
         }
@@ -83,7 +85,7 @@ class RecruitmentService(
         if (student.grade != recruitment.grade || student.classNo != recruitment.classNo) {
             throw BusinessException(ErrorCode.CLASS_MISMATCH)
         }
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         if (!recruitment.isOpen(now)) {
             throw BusinessException(ErrorCode.OUT_OF_PERIOD)
         }
@@ -138,7 +140,7 @@ class RecruitmentService(
         val grade = student.grade ?: throw BusinessException(ErrorCode.NO_ACTIVE_RECRUITMENT)
         val classNo = student.classNo ?: throw BusinessException(ErrorCode.NO_ACTIVE_RECRUITMENT)
 
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         val recruitments = recruitmentRepository.findByGradeAndClassNoOrderByStartDateDesc(grade, classNo)
         val recruitment = recruitments.firstOrNull { it.isOpen(now) }
             ?: recruitments.firstOrNull()
@@ -152,7 +154,7 @@ class RecruitmentService(
     /** 교사 웹: 학년/반별 전체 모집 현황. */
     @Transactional(readOnly = true)
     fun getRecruitments(): List<RecruitmentSummaryResponse> {
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         return recruitmentRepository.findAllByOrderByStartDateDescGradeAscClassNoAsc().map {
             RecruitmentSummaryResponse.of(it, applicationRepository.countByRecruitmentId(it.id), now)
         }

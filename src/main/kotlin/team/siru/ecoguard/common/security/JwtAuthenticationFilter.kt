@@ -19,9 +19,9 @@ class JwtAuthenticationFilter(
     ) {
         resolveToken(request)?.let { token ->
             val claims = jwtTokenProvider.parseClaims(token)
-            if (claims != null && jwtTokenProvider.isAccessToken(claims)) {
-                val userId = claims.subject.toLong()
-                val role = claims["role"] as String
+            val userId = claims?.subject?.toLongOrNull()
+            val role = claims?.get("role") as? String
+            if (claims != null && userId != null && role != null && jwtTokenProvider.isAccessToken(claims)) {
                 val authentication = UsernamePasswordAuthenticationToken(
                     userId,
                     null,

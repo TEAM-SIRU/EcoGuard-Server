@@ -25,7 +25,7 @@ import team.siru.ecoguard.user.Role
  * access token으로 교환하고 사용자 정보를 조회한다.
  */
 @Component
-@ConditionalOnProperty(prefix = "gsm.oauth", name = ["mock"], havingValue = "false")
+@ConditionalOnProperty(prefix = "gsm.oauth", name = ["mock"], havingValue = "false", matchIfMissing = true)
 class GsmOAuthRealClient(
     private val gsmAuthorizationRestClient: RestClient,
     private val gsmResourceRestClient: RestClient,

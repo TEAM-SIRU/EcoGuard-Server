@@ -17,7 +17,7 @@ import team.siru.ecoguard.user.Role
  * 형식에 맞지 않으면 OAUTH_FAILED 로 처리한다.
  */
 @Component
-@ConditionalOnProperty(prefix = "gsm.oauth", name = ["mock"], havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "gsm.oauth", name = ["mock"], havingValue = "true")
 class GsmOAuthMockClient : GsmOAuthClient {
 
     override fun authenticate(authCode: String): GsmUserInfo {
