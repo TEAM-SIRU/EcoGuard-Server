@@ -96,6 +96,40 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
         assertEquals(0, userRepository.count())
     }
 
+    @Test
+    fun `refresh token issues a working token pair and rejects invalid tokens`() {
+        val loginBody = objectMapper.readTree(
+            mockMvc.post("/api/v1/auth/login") {
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(mapOf("authCode" to "TEACHER|9003|t3@test.local|Teacher|||"))
+            }.andReturn().response.contentAsString,
+        )
+        val accessToken = loginBody.get("accessToken").asText()
+        val refreshToken = loginBody.get("refreshToken").asText()
+
+        val refreshed = mockMvc.post("/api/v1/auth/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(mapOf("refreshToken" to refreshToken))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.accessToken") { exists() }
+            jsonPath("$.refreshToken") { exists() }
+        }.andReturn()
+        val newAccessToken = objectMapper.readTree(refreshed.response.contentAsString).get("accessToken").asText()
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $newAccessToken") }
+            .andExpect { status { isOk() } }
+
+        // 액세스 토큰은 리프레시에 쓸 수 없고, 리프레시 토큰은 API 호출에 쓸 수 없다.
+        for (bad in listOf(accessToken, "garbage")) {
+            mockMvc.post("/api/v1/auth/refresh") {
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(mapOf("refreshToken" to bad))
+            }.andExpect { status { isUnauthorized() }; content { string("") } }
+        }
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $refreshToken") }
+            .andExpect { status { isUnauthorized() } }
+    }
+
     private fun login(authCode: String): String {
         val result = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
