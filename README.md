@@ -93,6 +93,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 | Method | Endpoint       | Role | Description |
 | ------ | -------------- | ---- | ----------- |
 | POST   | `/auth/login`  | -    | DataGSM 인가 코드로 로그인 |
+| POST   | `/auth/refresh` | -    | 리프레시 토큰으로 토큰 재발급 (사용할 때마다 갱신되어 로그인 유지) |
 | POST   | `/auth/logout` | 공통   | 로그아웃 |
 
 ### Recruitment

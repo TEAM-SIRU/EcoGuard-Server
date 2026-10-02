@@ -9,6 +9,16 @@ data class LoginRequest(
     val authCode: String,
 )
 
+data class RefreshRequest(
+    @field:NotBlank
+    val refreshToken: String,
+)
+
+data class TokenResponse(
+    val accessToken: String,
+    val refreshToken: String,
+)
+
 data class UserSummaryResponse(
     val userId: Long,
     val name: String,

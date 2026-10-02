@@ -55,6 +55,8 @@ class JwtTokenProvider(
 
     fun isAccessToken(claims: Claims): Boolean = claims["type"] == TOKEN_TYPE_ACCESS
 
+    fun isRefreshToken(claims: Claims): Boolean = claims["type"] == TOKEN_TYPE_REFRESH
+
     companion object {
         const val TOKEN_TYPE_ACCESS = "access"
         const val TOKEN_TYPE_REFRESH = "refresh"
