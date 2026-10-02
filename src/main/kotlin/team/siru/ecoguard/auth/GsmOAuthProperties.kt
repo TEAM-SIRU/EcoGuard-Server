@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties(prefix = "gsm.oauth")
 data class GsmOAuthProperties(
     /** true면 GsmOAuthMockClient, false면 GsmOAuthRealClient가 활성화된다. */
-    val mock: Boolean = true,
+    val mock: Boolean = false,
     /** datagsm.kr/clients 에서 OAuth 클라이언트를 등록하고 발급받은 값. */
     val clientId: String = "",
     val clientSecret: String = "",

@@ -30,6 +30,8 @@ class AiReviewService(
     @Transactional
     fun processReview(verificationId: Long, imageBytes: ByteArray, zoneId: String, userId: String?) {
         val verification = verificationRepository.findById(verificationId).orElse(null) ?: return
+        // 이미 수동 검토로 넘어갔거나 처리된 인증이면 건드리지 않는다.
+        if (verification.status != VerificationStatus.PROCESSING) return
 
         when (val outcome = aiServerClient.evaluate(imageBytes, zoneId, userId)) {
             is AiEvaluateOutcome.Success -> {

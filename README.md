@@ -242,12 +242,17 @@ cd EcoGuard-Server
 실행에 필요한 환경 변수를 설정합니다.
 
 ```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/ecoguard
-spring.datasource.username=YOUR_USERNAME
-spring.datasource.password=YOUR_PASSWORD
+DB_URL=jdbc:mysql://localhost:3306/ecoguard   # 선택 (기본값 있음)
+DB_USERNAME=YOUR_USERNAME                      # 필수
+DB_PASSWORD=YOUR_PASSWORD                      # 필수
+JWT_SECRET=YOUR_JWT_SECRET                     # 필수, 32바이트 이상
 
-jwt.secret=YOUR_JWT_SECRET
+GSM_OAUTH_MOCK=false                           # 기본 false. 로컬 개발에서만 true
+CORS_ALLOWED_ORIGINS=https://your-web-domain   # 쉼표로 구분, 기본은 localhost
+DDL_AUTO=validate                              # 기본 validate. 빈 DB 최초 1회만 update
 ```
+
+`GSM_OAUTH_MOCK=true`는 인가 코드 문자열만으로 교사 계정 포함 누구로든 로그인되므로 운영에서 절대 켜지 않습니다.
 
 실제 인증 정보 및 비밀키는 저장소에 포함하지 않습니다.
 

@@ -13,6 +13,8 @@ import team.siru.ecoguard.common.storage.FileStorageService
 import team.siru.ecoguard.user.UserRepository
 import team.siru.ecoguard.verification.dto.MyVerificationResponse
 import team.siru.ecoguard.verification.dto.SubmitVerificationResponse
+import org.springframework.dao.DataIntegrityViolationException
+import java.time.Clock
 import java.time.LocalDateTime
 
 @Service
@@ -22,6 +24,7 @@ class VerificationService(
     private val userRepository: UserRepository,
     private val fileStorageService: FileStorageService,
     private val aiReviewService: AiReviewService,
+    private val clock: Clock,
 ) {
 
     @Transactional
@@ -33,7 +36,7 @@ class VerificationService(
             throw BusinessException(ErrorCode.NOT_ASSIGNED_AREA)
         }
 
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         if (!CleaningTimeWindow.isWithin(area.cleanTime, now.toLocalTime())) {
             throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
         }
@@ -48,9 +51,14 @@ class VerificationService(
 
         val student = userRepository.findById(studentId).orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
 
-        val verification = verificationRepository.save(
-            Verification(student = student, area = area, photoUrl = photoUrl, verificationDate = today),
-        )
+        // 동시에 두 번 제출되면 위의 exists 검사를 둘 다 통과하므로, 유니크 제약 위반도 같은 오류로 변환한다.
+        val verification = try {
+            verificationRepository.saveAndFlush(
+                Verification(student = student, area = area, photoUrl = photoUrl, verificationDate = today),
+            )
+        } catch (e: DataIntegrityViolationException) {
+            throw BusinessException(ErrorCode.ALREADY_SUBMITTED_TODAY)
+        }
 
         // 비동기 검수가 커밋되지 않은 인증 행을 읽지 못하는 일이 없도록 커밋 이후에 검수를 시작한다.
         val verificationId = verification.id
