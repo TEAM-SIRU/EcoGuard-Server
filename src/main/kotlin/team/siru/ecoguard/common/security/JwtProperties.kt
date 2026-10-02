@@ -6,5 +6,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class JwtProperties(
     val secret: String,
     val accessTokenValiditySeconds: Long = 60 * 60 * 2,
-    val refreshTokenValiditySeconds: Long = 60 * 60 * 24 * 14,
+    val refreshTokenValiditySeconds: Long = 60 * 60 * 24 * 7,
 )
