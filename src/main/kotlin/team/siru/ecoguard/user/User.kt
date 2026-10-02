@@ -33,4 +33,10 @@ class User(
     var grade: Int? = null,
 
     var classNo: Int? = null,
+
+    /**
+     * 이 시각(epoch ms) 이전에 발급된 토큰은 모두 무효다. 로그아웃이나 분실/유출 대응 시 현재 시각으로 갱신한다.
+     * null이면 제한이 없다.
+     */
+    var tokensValidAfter: Long? = null,
 ) : BaseEntity()
