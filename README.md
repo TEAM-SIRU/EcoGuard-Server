@@ -251,9 +251,15 @@ JWT_SECRET=YOUR_JWT_SECRET                     # 필수, 32바이트 이상
 GSM_OAUTH_MOCK=false                           # 기본 false. 로컬 개발에서만 true
 CORS_ALLOWED_ORIGINS=https://your-web-domain   # 쉼표로 구분, 기본은 localhost
 DDL_AUTO=validate                              # 기본 validate. 빈 DB 최초 1회만 update
+
+# 앱 스토어 심사용 데모 학생 계정 (심사 기간에만 켠다)
+DEMO_ACCOUNT_ENABLED=false                     # 기본 false
+DEMO_ACCOUNT_AUTH_CODE=                        # 켤 때 필수, 16자 이상의 추측 불가능한 값
 ```
 
 `GSM_OAUTH_MOCK=true`는 인가 코드 문자열만으로 교사 계정 포함 누구로든 로그인되므로 운영에서 절대 켜지 않습니다.
+
+심사용 데모 계정을 켜면 `DEMO_ACCOUNT_AUTH_CODE` 값을 `authCode`로 로그인했을 때 고정된 데모 학생 계정(역할 `STUDENT`)으로 들어옵니다. 교사 권한은 부여되지 않으며, 심사가 끝나면 `DEMO_ACCOUNT_ENABLED=false`로 되돌립니다.
 
 실제 인증 정보 및 비밀키는 저장소에 포함하지 않습니다.
 

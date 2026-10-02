@@ -15,6 +15,7 @@ import team.siru.ecoguard.user.UserRepository
 @Service
 class AuthService(
     private val gsmOAuthClient: GsmOAuthClient,
+    private val demoAccountAuthenticator: DemoAccountAuthenticator,
     private val userRepository: UserRepository,
     private val jwtTokenProvider: JwtTokenProvider,
     private val tokenRevocationChecker: TokenRevocationChecker,
@@ -22,7 +23,7 @@ class AuthService(
 
     @Transactional
     fun login(authCode: String): LoginResponse {
-        val userInfo = gsmOAuthClient.authenticate(authCode)
+        val userInfo = demoAccountAuthenticator.authenticate(authCode) ?: gsmOAuthClient.authenticate(authCode)
 
         val user = userRepository.findByGsmAccountId(userInfo.gsmAccountId)
             ?.apply {
