@@ -38,7 +38,7 @@
 
 ### Verification
 
-* 지정 시간(07:20 ~ 08:10)에 배정된 구역의 청소 사진 제출 (당일 1회)
+* 평일 지정 시간(07:20 ~ 08:10)에 배정된 구역의 청소 사진 제출 (당일 1회, 주말 제출 불가, 공휴일은 아직 반영하지 않음)
 * 사진을 비동기로 검수 (`PROCESSING` / `APPROVED` / `REJECTED` / `MANUAL_REVIEW`)
 * 검수 방식은 `AI_REVIEW_PROVIDER`로 선택
   * `gemini`(기본): 자체 AI 모델이 준비되기 전까지 Gemini API로 검수. 통과만 자동 승인하고, 통과하지 못한 인증은 자동 반려하지 않고 교사 수동 검토로 전환 (`AI_FAILED`, AI가 지적한 사유는 `failReasons`로 함께 전달)

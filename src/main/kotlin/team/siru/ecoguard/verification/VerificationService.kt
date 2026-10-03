@@ -38,6 +38,9 @@ class VerificationService(
         }
 
         val now = LocalDateTime.now(clock)
+        if (!CleaningTimeWindow.isCertificationDay(now.toLocalDate())) {
+            throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
+        }
         if (!CleaningTimeWindow.isWithin(area.cleanTime, now.toLocalTime())) {
             throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
         }
