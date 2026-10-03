@@ -48,6 +48,18 @@ cors:
   # 쉼표로 구분한 허용 Origin 목록
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
+# 사진 검수 방식. gemini(기본): Gemini API 로 검수하고 통과만 자동 승인한다.
+# ai-server: 자체 AI 서버로 검수한다 (AI 모델이 준비되면 전환).
+ai-review:
+  provider: ${AI_REVIEW_PROVIDER:gemini}
+
+# 무료 요금제는 분당 호출 수가 적어 동시 호출을 제한한다. 키가 비어 있으면 모든 인증이 교사 수동 검토로 넘어간다.
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: ${GEMINI_MODEL:gemini-2.5-flash-lite}
+  timeout-millis: 15000
+  max-concurrency: 2
+
 ai-server:
   base-url: ${AI_SERVER_BASE_URL:http://localhost:9000}
   evaluate-path: /api/v1/cleaning/evaluate
@@ -60,8 +72,10 @@ file-storage:
 # 청소구역(학교 도면) 초기 데이터. 구역을 만드는 API가 없으므로 여기에 실제 학교
 # 구역을 정의해두면 서버 시작 시 자동으로 DB에 채워진다 (zone-code 기준, 이미 있으면 활성 여부 외 값 갱신).
 # zone-code는 AI 서버의 zone_id와 반드시 일치해야 한다.
-# 1차 운영 범위: 1학기 구역 + 2학기 구역을 합친 18개 구역 (노션 "청소 구역" 페이지 기준).
-# model-ready 기본값은 false이며, AI 모델 학습이 끝난 구역은 model-ready: true 를 추가해야 활성화할 수 있다.
+# 확정된 18개 구역 목록: 1학기 구역 + 2학기 구역을 합친 범위 (노션 "청소 구역" 페이지 기준).
+# model-ready 기본값은 false이며, true 인 구역만 활성화할 수 있다.
+# 지금은 Gemini 로 검수하므로 전 구역 true 이다. 자체 AI 서버(ai-review.provider=ai-server)로 전환하면
+# AI 모델 학습이 끝난 구역만 true 로 두어야 한다.
 # x, y 는 학교 도면 상 좌표로, 도면 좌표가 확정되면 채워 넣을 것.
 cleaning-area-seed:
   areas:
@@ -71,93 +85,111 @@ cleaning-area-seed:
       description: 본관 계단 A 1층→4층 (1→2층, 2→3층, 3→4층 구간 / 1층 현관 제외)
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: main_entrance_a
       name: 본관 1층 계단 A쪽 현관 및 신발장
       description: A쪽 현관, 신발장, 금봉관 연결통로 방향
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: main_stair_b
       name: 본관 계단 B
       description: 본관 계단 B 1층→4층 (1→2층, 2→3층, 3→4층 구간 / 1층 현관 제외)
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: main_stair_c
       name: 본관 계단 C
       description: 본관 계단 C 1층→4층 (1→2층, 2→3층, 3→4층 구간 / 1층 현관 제외)
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: practice_stair_d
       name: 본관(실습동) 계단 D
       description: 본관(실습동) 계단 D 1층→3층 (1층 현관, 1→2층, 2→3층 구간)
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: geumbong_stair_e
       name: 금봉관 계단 E
       description: 금봉관 계단 E 1층→4층 (1→2층, 2→3층, 3→4층 구간, 4층 철문 앞 / 1층 현관 제외)
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: geumbong_corridor_f1
       name: 금봉관 1층 복도
       description: 시청각실 앞부터 급식실 방향 현관까지 (현관 쓰레기통 주변 포함)
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: connector_f2
       name: 본관-금봉관 연결통로 2층
       description: 본관 쪽부터 금봉관 쪽까지 연결통로 전체
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: connector_f3
       name: 본관-금봉관 연결통로 3층
       description: 본관 쪽부터 금봉관 쪽까지 연결통로 전체
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: geumbong_corridor_f2
       name: 금봉관 2층 ㄱ자 복도
       description: 위클래스 앞부터 ㄱ자로 꺾이는 곳을 지나 끝까지
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: geumbong_corridor_f3
       name: 금봉관 3층 ㄱ자 복도
       description: 도서관 앞부터 ㄱ자로 꺾이는 곳을 지나 끝까지
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     - zone-code: main_fitness_room_f1
       name: 본관 1층 체력단련실
       description: 체력단련실 입구 쪽 및 내부
       clean-time: "07:20~08:10"
       semester: COMMON
+      model-ready: true
     # ── 1학기에만 있던 구역 ──
     - zone-code: main_entrance_b
       name: 본관 1층 계단 B쪽 현관 및 외부 현관
       description: B쪽 현관 안쪽과 외부 현관
       clean-time: "07:20~08:10"
       semester: FIRST
+      model-ready: true
     - zone-code: main_entrance_c
       name: 본관 1층 계단 C쪽 현관 및 외부 현관
       description: C쪽 현관 안쪽과 외부 현관
       clean-time: "07:20~08:10"
       semester: FIRST
+      model-ready: true
     - zone-code: main_entrance_d
       name: 본관 1층 계단 D쪽 현관 및 신발장
       description: D쪽 현관, 신발장
       clean-time: "07:20~08:10"
       semester: FIRST
+      model-ready: true
     - zone-code: connector_f1
       name: 본관-금봉관 연결통로 1층
       description: 본관 쪽부터 금봉관 쪽까지 연결통로 전체
       clean-time: "07:20~08:10"
       semester: FIRST
+      model-ready: true
     # ── 2학기에만 있던 구역 ──
     - zone-code: main_corridor_f3
       name: 본관 3층 복도 + 홈베이스
       description: 본관 3층 복도 전체와 홈베이스
       clean-time: "07:20~08:10"
       semester: SECOND
+      model-ready: true
     - zone-code: main_corridor_f4
       name: 본관 4층 복도 + 홈베이스
       description: 본관 4층 복도 전체와 홈베이스
       clean-time: "07:20~08:10"
       semester: SECOND
+      model-ready: true
 
 logging:
   level:

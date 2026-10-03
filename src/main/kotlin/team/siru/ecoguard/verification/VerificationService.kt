@@ -6,6 +6,7 @@ import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile
 import team.siru.ecoguard.aireview.AiReviewService
+import team.siru.ecoguard.aireview.EvaluateRequest
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
@@ -62,11 +63,16 @@ class VerificationService(
 
         // 비동기 검수가 커밋되지 않은 인증 행을 읽지 못하는 일이 없도록 커밋 이후에 검수를 시작한다.
         val verificationId = verification.id
-        val zoneCode = area.zoneCode
-        val studentNumber = student.studentNumber
+        val evaluateRequest = EvaluateRequest(
+            imageBytes = imageBytes,
+            zoneId = area.zoneCode,
+            zoneName = area.name,
+            zoneDescription = area.description,
+            userId = student.studentNumber,
+        )
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
-                aiReviewService.processReview(verificationId, imageBytes, zoneCode, studentNumber)
+                aiReviewService.processReview(verificationId, evaluateRequest)
             }
         })
 
