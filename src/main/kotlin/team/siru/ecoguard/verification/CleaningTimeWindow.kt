@@ -1,6 +1,8 @@
 package team.siru.ecoguard.verification
 
 import org.slf4j.LoggerFactory
+import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.LocalTime
 
 object CleaningTimeWindow {
@@ -9,6 +11,10 @@ object CleaningTimeWindow {
 
     private val DEFAULT_START: LocalTime = LocalTime.of(7, 20)
     private val DEFAULT_END: LocalTime = LocalTime.of(8, 10)
+
+    /** 인증은 평일(월~금)에만 가능하다. 공휴일은 아직 반영하지 않는다. */
+    fun isCertificationDay(date: LocalDate): Boolean =
+        date.dayOfWeek != DayOfWeek.SATURDAY && date.dayOfWeek != DayOfWeek.SUNDAY
 
     fun isWithin(cleanTime: String?, now: LocalTime): Boolean {
         val (start, end) = parse(cleanTime)
