@@ -9,13 +9,13 @@ import java.net.http.HttpClient
 import java.time.Duration
 
 @Configuration
-@ConditionalOnProperty(prefix = "ai-review", name = ["provider"], havingValue = "ai-server")
-class AiServerConfig(
-    private val properties: AiServerProperties,
+@ConditionalOnProperty(prefix = "ai-review", name = ["provider"], havingValue = "gemini", matchIfMissing = true)
+class GeminiConfig(
+    private val properties: GeminiProperties,
 ) {
 
     @Bean
-    fun aiServerRestClient(): RestClient {
+    fun geminiRestClient(): RestClient {
         val httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(properties.timeoutMillis))
             .build()

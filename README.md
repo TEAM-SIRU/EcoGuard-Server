@@ -30,8 +30,8 @@
 ### Cleaning Area
 
 * 학교 도면을 기반으로 미리 나눠진 청소 구역 관리
-* 1차 운영 범위: 1·2학기 기존 구역을 합친 18개 구역 (공통 12 / 1학기 4 / 2학기 2, `application.yaml`의 `cleaning-area-seed`)
-* AI 모델이 준비된 구역(`model-ready: true`)만 활성화 가능
+* 확정된 18개 구역: 1·2학기 기존 구역을 합친 목록 (공통 12 / 1학기 4 / 2학기 2, `application.yaml`의 `cleaning-area-seed`)
+* `model-ready: true`인 구역만 활성화 가능 (현재 Gemini 검수 중이라 전 구역 `true`, 자체 AI 서버로 전환하면 모델이 준비된 구역만 `true`)
 * 청소 구역 활성화 및 비활성화
 * 활성 구역에 학생 배정 (한 구역에 여러 명, 학생당 한 구역)
 * 담당 구역과 함께 배정된 학생 확인
@@ -39,8 +39,11 @@
 ### Verification
 
 * 지정 시간(07:20 ~ 08:10)에 배정된 구역의 청소 사진 제출 (당일 1회)
-* 외부 AI 서버를 호출해 사진을 비동기로 검수 (`PROCESSING` / `APPROVED` / `REJECTED` / `MANUAL_REVIEW`)
-* 구역의 AI 모델이 준비되지 않았거나(`model-ready: false`), 구역을 알 수 없거나, 검수가 10분 넘게 끝나지 않으면 교사 수동 검토로 전환 (`MODEL_NOT_READY` / `ZONE_MODEL_NOT_READY` / `UNKNOWN_ZONE` / `TIMEOUT`)
+* 사진을 비동기로 검수 (`PROCESSING` / `APPROVED` / `REJECTED` / `MANUAL_REVIEW`)
+* 검수 방식은 `AI_REVIEW_PROVIDER`로 선택
+  * `gemini`(기본): 자체 AI 모델이 준비되기 전까지 Gemini API로 검수. 통과만 자동 승인하고, 통과하지 못한 인증은 자동 반려하지 않고 교사 수동 검토로 전환 (`AI_FAILED`, AI가 지적한 사유는 `failReasons`로 함께 전달)
+  * `ai-server`: 자체 AI 서버로 검수 (AI 모델이 준비되면 전환)
+* 호출 한도 초과(`RATE_LIMITED`), AI 오류(`AI_ERROR`, `MODEL_NOT_READY`), 응답 지연(`TIMEOUT`), 구역을 알 수 없는 경우(`UNKNOWN_ZONE`), 검수가 10분 넘게 끝나지 않는 경우에도 교사 수동 검토로 전환
 * 인증 승인 시 봉사시간 10분 적립
 
 ### Appeal
@@ -197,7 +200,7 @@ src/main/kotlin/team/siru/ecoguard
 | `recruitment`  | 환경지킴이 모집 및 신청 |
 | `cleaningarea` | 청소 구역 및 학생 배정 |
 | `verification` | 청소 인증 사진 제출 |
-| `aireview`     | 외부 AI 서버 연동 검수, 교사 수동 검토, 지연된 검수 복구 |
+| `aireview`     | Gemini / 자체 AI 서버 연동 검수, 교사 수동 검토, 지연된 검수 복구 |
 | `appeal`       | 이의신청 |
 | `activity`     | 봉사시간 적립 및 활동 기록 |
 | `notice`       | 공지사항 |
@@ -232,7 +235,8 @@ API 요청
 * JDK 21
 * MySQL
 * Git
-* AI 검수 서버 (선택) — 없으면 인증 사진이 모두 교사 수동 검토로 넘어갑니다
+* Gemini API 키 (선택) — 없으면 인증 사진이 모두 교사 수동 검토로 넘어갑니다
+* 자체 AI 검수 서버 (선택) — `AI_REVIEW_PROVIDER=ai-server`일 때만 필요합니다
 
 ## Getting Started
 
@@ -261,7 +265,10 @@ GSM_OAUTH_CLIENT_ID=                           # mock=false일 때 필수 (datag
 GSM_OAUTH_CLIENT_SECRET=                       # mock=false일 때 필수
 GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수
 
-AI_SERVER_BASE_URL=http://localhost:9000       # 선택, AI 검수 서버 주소
+AI_REVIEW_PROVIDER=gemini                      # 선택, gemini(기본) 또는 ai-server
+GEMINI_API_KEY=                                # gemini일 때 필요. 비어 있으면 모두 수동 검토
+GEMINI_MODEL=gemini-2.5-flash-lite             # 선택, AI Studio에서 쓸 수 있는 모델과 한도 확인
+AI_SERVER_BASE_URL=http://localhost:9000       # ai-server일 때만 사용, 자체 AI 검수 서버 주소
 FILE_STORAGE_PATH=uploads                      # 선택, 인증 사진 저장 경로 (/files 로 공개)
 SERVER_PORT=8080                               # 선택
 CORS_ALLOWED_ORIGINS=https://your-web-domain   # 쉼표로 구분, 기본은 localhost

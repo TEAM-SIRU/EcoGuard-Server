@@ -18,7 +18,7 @@ private const val VERIFICATION_MINUTES = 10
 
 @Service
 class AiReviewService(
-    private val aiServerClient: AiServerClient,
+    private val aiEvaluator: AiEvaluator,
     private val verificationRepository: VerificationRepository,
     private val aiReviewRepository: AiReviewRepository,
     private val activityService: ActivityService,
@@ -28,12 +28,12 @@ class AiReviewService(
 
     @Async
     @Transactional
-    fun processReview(verificationId: Long, imageBytes: ByteArray, zoneId: String, userId: String?) {
+    fun processReview(verificationId: Long, request: EvaluateRequest) {
         val verification = verificationRepository.findById(verificationId).orElse(null) ?: return
         // 이미 수동 검토로 넘어갔거나 처리된 인증이면 건드리지 않는다.
         if (verification.status != VerificationStatus.PROCESSING) return
 
-        when (val outcome = aiServerClient.evaluate(imageBytes, zoneId, userId)) {
+        when (val outcome = aiEvaluator.evaluate(request)) {
             is AiEvaluateOutcome.Success -> {
                 val response = outcome.response
                 aiReviewRepository.save(
@@ -60,6 +60,12 @@ class AiReviewService(
             }
 
             is AiEvaluateOutcome.NeedsManualReview -> {
+                outcome.rawResponse?.let {
+                    aiReviewRepository.save(
+                        AiReview(verification = verification, rawResponse = it, decision = "FAIL", isPassed = false),
+                    )
+                }
+                verification.failReasons = outcome.failReasons.toMutableList()
                 verification.status = VerificationStatus.MANUAL_REVIEW
                 verification.manualReviewReason = outcome.reason.name
             }

@@ -22,6 +22,8 @@ data class ManualReviewItemResponse(
     val photoUrl: String,
     val submittedAt: LocalDateTime,
     val reason: String?,
+    /** AI 가 지적한 사유. 검수가 오류로 넘어온 경우에는 비어 있다. */
+    val failReasons: List<String>,
 ) {
     companion object {
         fun from(verification: Verification) = ManualReviewItemResponse(
@@ -31,6 +33,7 @@ data class ManualReviewItemResponse(
             photoUrl = verification.photoUrl,
             submittedAt = verification.createdAt,
             reason = verification.manualReviewReason,
+            failReasons = verification.failReasons.toList(),
         )
     }
 }
