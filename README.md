@@ -16,6 +16,8 @@
 
 * DataGSM OAuth를 이용한 로그인 / 로그아웃
 * JWT 기반 인증 및 인가 (`STUDENT`, `TEACHER`)
+* 액세스 토큰 2시간 / 리프레시 토큰 7일 (사용할 때마다 갱신되는 sliding 방식), 리프레시 토큰으로 재발급
+* 로그아웃 시 이전에 발급된 모든 기기의 토큰 무효화
 * 학생은 앱, 교사는 웹에서 이용
 
 ### Recruitment
@@ -37,8 +39,8 @@
 ### Verification
 
 * 지정 시간(07:20 ~ 08:10)에 배정된 구역의 청소 사진 제출 (당일 1회)
-* AI 기반 사진 검수 (`PROCESSING` / `APPROVED` / `REJECTED` / `MANUAL_REVIEW`)
-* AI 검수 실패 시 교사 수동 검토
+* 외부 AI 서버를 호출해 사진을 비동기로 검수 (`PROCESSING` / `APPROVED` / `REJECTED` / `MANUAL_REVIEW`)
+* 구역의 AI 모델이 준비되지 않았거나(`model-ready: false`), 구역을 알 수 없거나, 검수가 10분 넘게 끝나지 않으면 교사 수동 검토로 전환 (`MODEL_NOT_READY` / `ZONE_MODEL_NOT_READY` / `UNKNOWN_ZONE` / `TIMEOUT`)
 * 인증 승인 시 봉사시간 10분 적립
 
 ### Appeal
@@ -82,7 +84,7 @@ AI 검수
 이의신청 → 교사 검토 → 승인 시 +10분
 ```
 
-AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수 있습니다.
+AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수 있습니다. 서버 재시작이나 예외로 검수가 끝나지 못한 인증은 5분마다 점검해 수동 검토로 넘깁니다.
 
 ## API
 
@@ -195,7 +197,7 @@ src/main/kotlin/team/siru/ecoguard
 | `recruitment`  | 환경지킴이 모집 및 신청 |
 | `cleaningarea` | 청소 구역 및 학생 배정 |
 | `verification` | 청소 인증 사진 제출 |
-| `aireview`     | AI 검수 및 교사 수동 검토 |
+| `aireview`     | 외부 AI 서버 연동 검수, 교사 수동 검토, 지연된 검수 복구 |
 | `appeal`       | 이의신청 |
 | `activity`     | 봉사시간 적립 및 활동 기록 |
 | `notice`       | 공지사항 |
@@ -221,13 +223,16 @@ JWT 발급
 API 요청
 ```
 
-발급된 JWT를 이용하여 인증이 필요한 API에 접근합니다.
+발급된 액세스 토큰을 이용하여 인증이 필요한 API에 접근합니다. 액세스 토큰이 만료되면 `/auth/refresh`로 재발급하고, 로그아웃하면 이전에 발급된 토큰이 모두 무효화됩니다.
+
+앱 스토어 심사용으로 고정된 데모 학생 계정을 켤 수 있습니다 (아래 환경 변수 참고).
 
 ## Requirements
 
 * JDK 21
 * MySQL
 * Git
+* AI 검수 서버 (선택) — 없으면 인증 사진이 모두 교사 수동 검토로 넘어갑니다
 
 ## Getting Started
 
@@ -248,7 +253,17 @@ DB_USERNAME=YOUR_USERNAME                      # 필수
 DB_PASSWORD=YOUR_PASSWORD                      # 필수
 JWT_SECRET=YOUR_JWT_SECRET                     # 필수, 32바이트 이상
 
+JWT_ACCESS_VALIDITY=7200                       # 선택, 액세스 토큰 유효 시간(초)
+JWT_REFRESH_VALIDITY=604800                    # 선택, 리프레시 토큰 유효 시간(초, 기본 7일)
+
 GSM_OAUTH_MOCK=false                           # 기본 false. 로컬 개발에서만 true
+GSM_OAUTH_CLIENT_ID=                           # mock=false일 때 필수 (datagsm.kr/clients에서 발급)
+GSM_OAUTH_CLIENT_SECRET=                       # mock=false일 때 필수
+GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수
+
+AI_SERVER_BASE_URL=http://localhost:9000       # 선택, AI 검수 서버 주소
+FILE_STORAGE_PATH=uploads                      # 선택, 인증 사진 저장 경로 (/files 로 공개)
+SERVER_PORT=8080                               # 선택
 CORS_ALLOWED_ORIGINS=https://your-web-domain   # 쉼표로 구분, 기본은 localhost
 DDL_AUTO=validate                              # 기본 validate. 빈 DB 최초 1회만 update
 
@@ -302,26 +317,6 @@ Windows:
 ```
 
 테스트 환경에서는 H2를 사용합니다.
-
-## Development
-
-### Build
-
-```bash
-./gradlew build
-```
-
-### Test
-
-```bash
-./gradlew test
-```
-
-### Run
-
-```bash
-./gradlew bootRun
-```
 
 ## Team
 
