@@ -11,6 +11,7 @@ import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.storage.FileStorageService
+import team.siru.ecoguard.schoolcalendar.VacationService
 import team.siru.ecoguard.user.UserRepository
 import team.siru.ecoguard.verification.dto.MyVerificationResponse
 import team.siru.ecoguard.verification.dto.SubmitVerificationResponse
@@ -25,6 +26,7 @@ class VerificationService(
     private val userRepository: UserRepository,
     private val fileStorageService: FileStorageService,
     private val aiReviewService: AiReviewService,
+    private val vacationService: VacationService,
     private val clock: Clock,
 ) {
 
@@ -39,6 +41,9 @@ class VerificationService(
 
         val now = LocalDateTime.now(clock)
         if (!CleaningTimeWindow.isCertificationDay(now.toLocalDate())) {
+            throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
+        }
+        if (vacationService.isVacation(now.toLocalDate())) {
             throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
         }
         if (!CleaningTimeWindow.isWithin(area.cleanTime, now.toLocalTime())) {

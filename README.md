@@ -38,7 +38,8 @@
 
 ### Verification
 
-* 평일 지정 시간(07:20 ~ 08:10)에 배정된 구역의 청소 사진 제출 (당일 1회, 주말 제출 불가, 공휴일은 아직 반영하지 않음)
+* 평일 지정 시간(07:20 ~ 08:10)에 배정된 구역의 청소 사진 제출 (당일 1회, 주말과 방학 기간에는 제출 불가, 공휴일은 아직 반영하지 않음)
+* 방학 기간은 NEIS 학사일정의 방학식 다음 날 ~ 개학일 전날로 판단 (조회 결과는 6시간 캐시, NEIS 장애 시에는 제출을 막지 않음)
 * 사진을 비동기로 검수 (`PROCESSING` / `APPROVED` / `REJECTED` / `MANUAL_REVIEW`)
 * 검수 방식은 `AI_REVIEW_PROVIDER`로 선택
   * `gemini`(기본): 자체 AI 모델이 준비되기 전까지 Gemini API로 검수. 통과만 자동 승인하고, 통과하지 못한 인증은 자동 반려하지 않고 교사 수동 검토로 전환 (`AI_FAILED`, AI가 지적한 사유는 `failReasons`로 함께 전달)
@@ -236,6 +237,7 @@ API 요청
 * MySQL
 * Git
 * Gemini API 키 (선택) — 없으면 인증 사진이 모두 교사 수동 검토로 넘어갑니다
+* NEIS Open API 키 (선택) — 학사일정으로 방학 기간 인증을 막습니다. 없으면 방학 제한을 적용하지 않습니다
 * 자체 AI 검수 서버 (선택) — `AI_REVIEW_PROVIDER=ai-server`일 때만 필요합니다
 
 ## Getting Started
@@ -268,6 +270,9 @@ GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수
 AI_REVIEW_PROVIDER=gemini                      # 선택, gemini(기본) 또는 ai-server
 GEMINI_API_KEY=                                # gemini일 때 필요. 비어 있으면 모두 수동 검토
 GEMINI_MODEL=gemini-2.5-flash-lite             # 선택, AI Studio에서 쓸 수 있는 모델과 한도 확인
+NEIS_API_KEY=                                  # 선택, open.neis.go.kr에서 발급. 비어 있으면 방학 제한 없음
+NEIS_EDUCATION_OFFICE_CODE=                    # NEIS 키를 쓸 때 필수, 시도교육청 코드 (예: F10)
+NEIS_SCHOOL_CODE=                              # NEIS 키를 쓸 때 필수, 표준학교코드
 AI_SERVER_BASE_URL=http://localhost:9000       # ai-server일 때만 사용, 자체 AI 검수 서버 주소
 FILE_STORAGE_PATH=uploads                      # 선택, 인증 사진 저장 경로 (/files 로 공개)
 SERVER_PORT=8080                               # 선택

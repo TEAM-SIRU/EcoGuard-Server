@@ -60,6 +60,13 @@ gemini:
   timeout-millis: 15000
   max-concurrency: 2
 
+# 방학 기간에는 청소 인증을 막는다. NEIS 학사일정의 방학식~개학 사이를 방학으로 본다.
+# 키나 학교 코드가 비어 있으면 방학 제한을 적용하지 않는다.
+neis:
+  api-key: ${NEIS_API_KEY:}
+  education-office-code: ${NEIS_EDUCATION_OFFICE_CODE:}
+  school-code: ${NEIS_SCHOOL_CODE:}
+
 ai-server:
   base-url: ${AI_SERVER_BASE_URL:http://localhost:9000}
   evaluate-path: /api/v1/cleaning/evaluate

@@ -9,6 +9,7 @@ import team.siru.ecoguard.auth.GsmOAuthProperties
 import team.siru.ecoguard.cleaningarea.CleaningAreaSeedProperties
 import team.siru.ecoguard.common.security.JwtProperties
 import team.siru.ecoguard.common.storage.FileStorageProperties
+import team.siru.ecoguard.schoolcalendar.NeisProperties
 
 @Configuration
 @EnableConfigurationProperties(
@@ -19,5 +20,6 @@ import team.siru.ecoguard.common.storage.FileStorageProperties
     GeminiProperties::class,
     DemoAccountProperties::class,
     CleaningAreaSeedProperties::class,
+    NeisProperties::class,
 )
 class PropertiesConfig
