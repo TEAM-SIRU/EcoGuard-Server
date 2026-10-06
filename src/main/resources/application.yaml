@@ -79,14 +79,14 @@ file-storage:
 # 청소구역(학교 도면) 초기 데이터. 구역을 만드는 API가 없으므로 여기에 실제 학교
 # 구역을 정의해두면 서버 시작 시 자동으로 DB에 채워진다 (zone-code 기준, 이미 있으면 활성 여부 외 값 갱신).
 # zone-code는 AI 서버의 zone_id와 반드시 일치해야 한다.
-# 확정된 18개 구역 목록: 1학기 구역 + 2학기 구역을 합친 범위 (노션 "청소 구역" 페이지 기준).
+# 확정된 18개 구역 목록. 학기별로 나누지 않고 하나의 목록으로 관리한다 (노션 "청소 구역" 페이지 기준).
 # model-ready 기본값은 false이며, true 인 구역만 활성화할 수 있다.
 # 지금은 Gemini 로 검수하므로 전 구역 true 이다. 자체 AI 서버(ai-review.provider=ai-server)로 전환하면
 # AI 모델 학습이 끝난 구역만 true 로 두어야 한다.
 # x, y 는 학교 도면 상 좌표로, 도면 좌표가 확정되면 채워 넣을 것.
 cleaning-area-seed:
   areas:
-    # ── 1·2학기 공통 ──
+    # ── 학기 구분 없이 18개 전체를 하나의 목록으로 관리 ──
     - zone-code: main_stair_a
       name: 본관 계단 A
       description: 본관 계단 A 1층→4층 (1→2층, 2→3층, 3→4층 구간 / 1층 현관 제외)
@@ -159,43 +159,41 @@ cleaning-area-seed:
       clean-time: "07:20~08:10"
       semester: COMMON
       model-ready: true
-    # ── 1학기에만 있던 구역 ──
     - zone-code: main_entrance_b
       name: 본관 1층 계단 B쪽 현관 및 외부 현관
       description: B쪽 현관 안쪽과 외부 현관
       clean-time: "07:20~08:10"
-      semester: FIRST
+      semester: COMMON
       model-ready: true
     - zone-code: main_entrance_c
       name: 본관 1층 계단 C쪽 현관 및 외부 현관
       description: C쪽 현관 안쪽과 외부 현관
       clean-time: "07:20~08:10"
-      semester: FIRST
+      semester: COMMON
       model-ready: true
     - zone-code: main_entrance_d
       name: 본관 1층 계단 D쪽 현관 및 신발장
       description: D쪽 현관, 신발장
       clean-time: "07:20~08:10"
-      semester: FIRST
+      semester: COMMON
       model-ready: true
     - zone-code: connector_f1
       name: 본관-금봉관 연결통로 1층
       description: 본관 쪽부터 금봉관 쪽까지 연결통로 전체
       clean-time: "07:20~08:10"
-      semester: FIRST
+      semester: COMMON
       model-ready: true
-    # ── 2학기에만 있던 구역 ──
     - zone-code: main_corridor_f3
       name: 본관 3층 복도 + 홈베이스
       description: 본관 3층 복도 전체와 홈베이스
       clean-time: "07:20~08:10"
-      semester: SECOND
+      semester: COMMON
       model-ready: true
     - zone-code: main_corridor_f4
       name: 본관 4층 복도 + 홈베이스
       description: 본관 4층 복도 전체와 홈베이스
       clean-time: "07:20~08:10"
-      semester: SECOND
+      semester: COMMON
       model-ready: true
 
 logging:

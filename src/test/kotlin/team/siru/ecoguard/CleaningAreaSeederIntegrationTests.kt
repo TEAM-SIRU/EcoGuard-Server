@@ -45,9 +45,7 @@ class CleaningAreaSeederIntegrationTests @Autowired constructor(
         val codes = properties.areas.map { it.zoneCode }
         assertEquals(18, codes.size)
         assertEquals(codes.size, codes.toSet().size)
-        assertEquals(12, properties.areas.count { it.semester == CleaningAreaSemester.COMMON })
-        assertEquals(4, properties.areas.count { it.semester == CleaningAreaSemester.FIRST })
-        assertEquals(2, properties.areas.count { it.semester == CleaningAreaSemester.SECOND })
+        assertEquals(18, properties.areas.count { it.semester == CleaningAreaSemester.COMMON })
         assertTrue(properties.areas.all { it.cleanTime == "07:20~08:10" })
     }
 
