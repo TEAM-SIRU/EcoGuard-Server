@@ -25,7 +25,8 @@
 * 학기별 · 학년/반별 모집 (반별 최대 6명, 선착순)
 * 학생은 본인 반 모집만 조회 및 신청 가능
 * 신청 즉시 선착순으로 승인(`APPROVED`)되며, 정원이 차면 신청 불가
-* 신청 순서(N번째) 및 승인 상태 확인
+* 신청 순서(N번째) 및 승인 상태 확인 (응답의 `recruitmentId`로 학기 구분)
+* 서버 시간 기준은 서버 OS 시간대와 무관하게 항상 `Asia/Seoul`(KST)
 
 ### Cleaning Area
 
@@ -113,7 +114,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 | GET    | `/recruitments/current`                   | STUDENT | 내 반 모집 공고 조회 |
 | POST   | `/recruitments/{recruitmentId}/applications` | STUDENT | 환경지킴이 신청 |
 | GET    | `/recruitments/{recruitmentId}/applications` | TEACHER | 신청자 목록 (신청 순서대로) |
-| GET    | `/applications/me`                        | STUDENT | 내 신청 결과 및 신청 순서 |
+| GET    | `/applications/me`                        | STUDENT | 내 신청 결과 및 신청 순서 (`recruitmentId`로 어느 모집(학기)의 신청인지 구분) |
 
 ### Cleaning Area
 
@@ -122,7 +123,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 | GET    | `/cleaning-areas`                      | 공통      | 학교 도면 구역 목록 (활성 여부, 배정 학생) |
 | PATCH  | `/cleaning-areas/{areaId}`             | TEACHER | 구역 활성 / 비활성 |
 | POST   | `/cleaning-areas/{areaId}/assignments` | TEACHER | 구역에 학생 배정 |
-| GET    | `/assignments/me`                      | STUDENT | 내 청소 구역 및 함께 배정된 학생 |
+| GET    | `/assignments/me`                      | STUDENT | 내 청소 구역 및 함께 배정된 학생 (`zoneCode`로 앱 도면에서 내 구역 칸을 찾아 표시) |
 
 ### Verification & AI Review
 
@@ -344,6 +345,21 @@ Windows:
 ```
 
 테스트 환경에서는 H2를 사용합니다.
+
+## CI/CD
+
+GitHub Actions로 테스트와 배포를 자동화합니다 (`.github/workflows`).
+
+| 워크플로 | 시점 | 동작 |
+| -------- | ---- | ---- |
+| `ci.yml` | `main` 대상 PR | `./gradlew test` |
+| `deploy.yml` | `main`에 머지(push), 수동 실행 가능 | 테스트/빌드 → SSH로 `/opt/ecoguard/app.jar` 업로드 → `systemctl restart ecoguard` → `/auth/callback` 302 헬스체크(최대 3분) |
+
+배포에 필요한 설정은 다음과 같습니다.
+
+* GitHub Secrets: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY` (배포 전용 키)
+* 서버: 배포 전용 공개키를 `~/.ssh/authorized_keys`에 등록하고, `sudo systemctl restart ecoguard`를 비밀번호 없이 실행하도록 sudoers에 허용
+* 서버 환경변수 파일(`ecoguard.env`)은 배포가 건드리지 않으므로 새 환경변수가 생기면 서버에서 직접 추가한 뒤 배포합니다.
 
 ## Team
 
