@@ -131,6 +131,7 @@ class SpecFlowIntegrationTests @Autowired constructor(
         mockMvc.get("/api/v1/assignments/me") { bearer(s1) }.andExpect {
             status { isOk() }
             jsonPath("$.areaId") { value(area.id) }
+            jsonPath("$.zoneCode") { value(area.zoneCode) }
             jsonPath("$.members.length()") { value(2) }
         }
 
