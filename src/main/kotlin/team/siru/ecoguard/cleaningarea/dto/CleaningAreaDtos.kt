@@ -69,6 +69,8 @@ data class UpdateAreaRequest(
 
 data class MyAssignmentResponse(
     val areaId: Long,
+    /** 앱 도면에서 내 구역 칸을 찾는 식별자 (예: main_stair_a) */
+    val zoneCode: String,
     val areaName: String,
     val description: String?,
     val cleanTime: String?,
@@ -79,6 +81,7 @@ data class MyAssignmentResponse(
     companion object {
         fun from(assignment: Assignment, members: List<User>) = MyAssignmentResponse(
             areaId = assignment.area.id,
+            zoneCode = assignment.area.zoneCode,
             areaName = assignment.area.name,
             description = assignment.area.description,
             cleanTime = assignment.area.cleanTime,
