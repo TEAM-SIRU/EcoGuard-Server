@@ -38,7 +38,7 @@ class ActivityService(
 ) {
 
     @Transactional
-    fun accumulate(studentId: Long, minutes: Int, reason: ServiceTimeReason, areaName: String?, date: LocalDate = LocalDate.now()) {
+    fun accumulate(studentId: Long, minutes: Int, reason: ServiceTimeReason, areaName: String?, date: LocalDate = LocalDate.now(clock)) {
         val student = userRepository.findById(studentId).orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
         serviceTimeLogRepository.save(
             ServiceTimeLog(student = student, minutes = minutes, reason = reason, date = date, areaName = areaName),

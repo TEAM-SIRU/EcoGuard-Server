@@ -133,6 +133,7 @@ class RecruitmentService(
         val order = applicationRepository.countByRecruitmentIdAndIdLessThanEqual(application.recruitment.id, application.id)
         val assigned = assignmentRepository.existsByStudentId(studentId)
         return ApplicationStatusResponse(
+            recruitmentId = application.recruitment.id,
             status = application.status,
             order = order,
             appliedAt = application.createdAt,
