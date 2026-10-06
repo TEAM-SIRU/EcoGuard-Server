@@ -105,7 +105,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint                                  | Role    | Description |
 | ------ | ----------------------------------------- | ------- | ----------- |
-| POST   | `/recruitments`                           | TEACHER | 모집 공고 등록 |
+| POST   | `/recruitments`                           | TEACHER | 모집 공고 등록 (`semester`는 `"2026-2"`처럼 `연도-학기`, 활동 시간 `activityStartTime`/`activityEndTime`은 `"07:20"` 형식이며 생략하면 07:20~08:10) |
 | PATCH  | `/recruitments/{recruitmentId}`           | TEACHER | 모집 기간 / 인원 수정 |
 | GET    | `/recruitments`                           | TEACHER | 학년/반별 전체 모집 현황 |
 | GET    | `/recruitments/current`                   | STUDENT | 내 반 모집 공고 조회 |
@@ -126,7 +126,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint                              | Role            | Description |
 | ------ | ------------------------------------- | --------------- | ----------- |
-| POST   | `/verifications`                      | STUDENT         | 청소 인증 사진 제출 (`multipart/form-data`, `photo`) |
+| POST   | `/verifications`                      | STUDENT         | 청소 인증 사진 제출 (`multipart/form-data`, `photo`). 재전송 대비 헤더 `Idempotency-Key`(64자 이하), `X-Submit-Started-At`(ISO-8601) 선택 |
 | GET    | `/verifications/today`                | STUDENT         | 오늘 인증 정보 (배정 구역, 인증 가능 시간, 서버 시각, 제출 여부·시각, 불가 사유) |
 | GET    | `/verifications/me`                   | STUDENT         | 내 인증 내역 |
 | GET    | `/verifications/{verificationId}/review` | STUDENT, TEACHER | 검수 상태 및 결과 (학생은 본인 것만) |
@@ -140,7 +140,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 | POST   | `/verifications/{verificationId}/appeals` | STUDENT | 반려된 인증에 이의신청 (JSON `content`, 또는 `multipart/form-data`의 `content` + `photos` 최대 3장) |
 | GET    | `/appeals/me`                             | STUDENT | 내 이의신청 내역 (N차, 상태, 교사 답변) |
 | GET    | `/appeals?status=`                        | TEACHER | 이의신청 목록 |
-| PATCH  | `/appeals/{appealId}`                     | TEACHER | 이의신청 승인 / 반려 및 답변 |
+| PATCH  | `/appeals/{appealId}`                     | TEACHER | 이의신청 승인 / 반려 및 답변 (`replyTitle` 제목, `reply` 본문) |
 
 ### Activity
 
@@ -155,8 +155,8 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint              | Role    | Description |
 | ------ | --------------------- | ------- | ----------- |
-| GET    | `/notices`            | 공통      | 공지 목록 (최신순) |
-| GET    | `/notices/{noticeId}` | 공통      | 공지 상세 (이전 / 다음 공지 ID 포함) |
+| GET    | `/notices`            | 공통      | 공지 목록 (최신순, 본문 미리보기와 내 읽음 여부 `isRead` 포함) |
+| GET    | `/notices/{noticeId}` | 공통      | 공지 상세 (이전 / 다음 공지 ID 포함, 열면 읽음으로 기록) |
 | POST   | `/notices`            | TEACHER | 공지 작성 |
 | PATCH  | `/notices/{noticeId}` | TEACHER | 공지 수정 |
 | DELETE | `/notices/{noticeId}` | TEACHER | 공지 삭제 |

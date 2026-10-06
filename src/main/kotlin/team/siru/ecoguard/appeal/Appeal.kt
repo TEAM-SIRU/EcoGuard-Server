@@ -37,7 +37,11 @@ class Appeal(
     @Column(nullable = false)
     var status: AppealStatus = AppealStatus.PENDING,
 
-    /** 교사 답변 (반려 사유 등) */
+    /** 교사 답변 제목 */
+    @Column(length = 100)
+    var replyTitle: String? = null,
+
+    /** 교사 답변 본문 (반려 사유 등) */
     @Column(columnDefinition = "TEXT")
     var reply: String? = null,
 

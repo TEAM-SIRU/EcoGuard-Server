@@ -7,6 +7,7 @@ import team.siru.ecoguard.recruitment.Recruitment
 import team.siru.ecoguard.recruitment.RecruitmentApplication
 import team.siru.ecoguard.recruitment.RecruitmentPeriodStatus
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 data class CreateRecruitmentRequest(
     @field:NotBlank
@@ -22,6 +23,10 @@ data class CreateRecruitmentRequest(
     val startDate: LocalDateTime,
     @field:NotNull
     val endDate: LocalDateTime,
+    /** 청소 활동 시작 시각(예: "07:20"). 생략하면 07:20 */
+    val activityStartTime: LocalTime? = null,
+    /** 청소 활동 종료 시각(예: "08:10"). 생략하면 08:10 */
+    val activityEndTime: LocalTime? = null,
 )
 
 data class CreateRecruitmentResponse(
@@ -32,6 +37,8 @@ data class UpdateRecruitmentRequest(
     val maxCount: Int? = null,
     val startDate: LocalDateTime? = null,
     val endDate: LocalDateTime? = null,
+    val activityStartTime: LocalTime? = null,
+    val activityEndTime: LocalTime? = null,
 )
 
 data class ApplyRequest(
@@ -58,6 +65,11 @@ data class ApplicationStatusResponse(
     val waitingForAssignment: Boolean,
 )
 
+data class ActivityTime(
+    val start: LocalTime,
+    val end: LocalTime,
+)
+
 data class RecruitmentPeriod(
     val start: LocalDateTime,
     val end: LocalDateTime,
@@ -69,6 +81,8 @@ data class CurrentRecruitmentResponse(
     val grade: Int,
     val classNo: Int,
     val period: RecruitmentPeriod,
+    /** 청소 활동 시간 (하루 중 시작~끝). 설정하지 않은 모집은 07:20~08:10 */
+    val activityTime: ActivityTime,
     val periodStatus: RecruitmentPeriodStatus,
     val maxCount: Int,
     val currentApplicants: Long,
@@ -83,6 +97,7 @@ data class CurrentRecruitmentResponse(
                 grade = recruitment.grade,
                 classNo = recruitment.classNo,
                 period = RecruitmentPeriod(recruitment.startDate, recruitment.endDate),
+                activityTime = ActivityTime(recruitment.effectiveActivityStart(), recruitment.effectiveActivityEnd()),
                 periodStatus = recruitment.periodStatus(now),
                 maxCount = recruitment.maxCount,
                 currentApplicants = currentApplicants,
@@ -98,6 +113,8 @@ data class RecruitmentSummaryResponse(
     val grade: Int,
     val classNo: Int,
     val period: RecruitmentPeriod,
+    /** 청소 활동 시간 (하루 중 시작~끝). 설정하지 않은 모집은 07:20~08:10 */
+    val activityTime: ActivityTime,
     val periodStatus: RecruitmentPeriodStatus,
     val maxCount: Int,
     val applicantCount: Long,
@@ -110,6 +127,7 @@ data class RecruitmentSummaryResponse(
             grade = recruitment.grade,
             classNo = recruitment.classNo,
             period = RecruitmentPeriod(recruitment.startDate, recruitment.endDate),
+            activityTime = ActivityTime(recruitment.effectiveActivityStart(), recruitment.effectiveActivityEnd()),
             periodStatus = recruitment.periodStatus(now),
             maxCount = recruitment.maxCount,
             applicantCount = applicantCount,

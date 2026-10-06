@@ -24,7 +24,7 @@ class GlobalExceptionHandler {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
         return ResponseEntity.status(e.errorCode.status)
-            .body(ErrorResponse(e.errorCode.name, e.message ?: e.errorCode.defaultMessage))
+            .body(ErrorResponse(e.errorCode.name, e.message ?: e.errorCode.defaultMessage, e.submittedAt))
     }
 
     @ExceptionHandler(MethodArgumentNotValidException::class)

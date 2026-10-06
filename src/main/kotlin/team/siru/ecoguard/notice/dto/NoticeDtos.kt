@@ -22,15 +22,18 @@ data class NoticeListItemResponse(
     val title: String,
     /** 본문 앞부분 (공백 정리 후 최대 100자) */
     val preview: String,
+    /** 요청한 사용자가 상세를 이미 열어 봤는지 */
+    val isRead: Boolean,
     val createdAt: LocalDateTime,
 ) {
     companion object {
         private const val PREVIEW_LENGTH = 100
 
-        fun from(notice: Notice) = NoticeListItemResponse(
+        fun from(notice: Notice, isRead: Boolean) = NoticeListItemResponse(
             noticeId = notice.id,
             title = notice.title,
             preview = notice.content.replace(Regex("\\s+"), " ").trim().take(PREVIEW_LENGTH),
+            isRead = isRead,
             createdAt = notice.createdAt,
         )
     }

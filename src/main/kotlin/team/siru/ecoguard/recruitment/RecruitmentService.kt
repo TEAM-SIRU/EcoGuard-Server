@@ -17,6 +17,7 @@ import team.siru.ecoguard.recruitment.dto.UpdateRecruitmentRequest
 import team.siru.ecoguard.user.UserRepository
 import java.time.Clock
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 private const val MAX_COUNT_PER_CLASS = 6
 
@@ -37,6 +38,10 @@ class RecruitmentService(
         if (request.maxCount !in 1..MAX_COUNT_PER_CLASS) {
             throw BusinessException(ErrorCode.INVALID_MAX_COUNT)
         }
+        validateActivityTime(
+            request.activityStartTime ?: Recruitment.DEFAULT_ACTIVITY_START,
+            request.activityEndTime ?: Recruitment.DEFAULT_ACTIVITY_END,
+        )
         val teacher = userRepository.findById(teacherId).orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
 
         val recruitment = recruitmentRepository.save(
@@ -48,6 +53,8 @@ class RecruitmentService(
                 startDate = request.startDate,
                 endDate = request.endDate,
                 teacher = teacher,
+                activityStartTime = request.activityStartTime,
+                activityEndTime = request.activityEndTime,
             ),
         )
         return CreateRecruitmentResponse(recruitment.id)
@@ -74,6 +81,18 @@ class RecruitmentService(
         }
         recruitment.startDate = newStart
         recruitment.endDate = newEnd
+
+        if (request.activityStartTime != null || request.activityEndTime != null) {
+            val newActivityStart = request.activityStartTime ?: recruitment.effectiveActivityStart()
+            val newActivityEnd = request.activityEndTime ?: recruitment.effectiveActivityEnd()
+            validateActivityTime(newActivityStart, newActivityEnd)
+            recruitment.activityStartTime = newActivityStart
+            recruitment.activityEndTime = newActivityEnd
+        }
+    }
+
+    private fun validateActivityTime(start: LocalTime, end: LocalTime) {
+        if (!start.isBefore(end)) throw BusinessException(ErrorCode.INVALID_ACTIVITY_TIME)
     }
 
     @Transactional
