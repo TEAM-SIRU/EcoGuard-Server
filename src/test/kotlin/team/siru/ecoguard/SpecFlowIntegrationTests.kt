@@ -58,7 +58,7 @@ class SpecFlowIntegrationTests @Autowired constructor(
     }
 
     @Test
-    fun `recruitment is per class, ordered first-come, and confirmed by teacher`() {
+    fun `recruitment is per class, approved immediately first-come`() {
         val teacher = login("TEACHER|9101|t@test.local|Teacher|||")
         val s1 = login("STUDENT|9102|s1@test.local|S1|1101|1|1")
         val s2 = login("STUDENT|9103|s2@test.local|S2|1102|1|1")
@@ -84,14 +84,12 @@ class SpecFlowIntegrationTests @Autowired constructor(
         }.andExpect {
             status { isCreated() }
             jsonPath("$.order") { value(1) }
+            jsonPath("$.status") { value("APPROVED") }
         }
 
         mockMvc.post("/api/v1/recruitments/$recruitmentId/applications") {
             bearer(s2); json("""{"motivation":"x"}""")
         }.andExpect { status { isConflict() } }
-
-        mockMvc.post("/api/v1/recruitments/$recruitmentId/confirm") { bearer(teacher) }
-            .andExpect { status { isOk() }; jsonPath("$.approvedCount") { value(1) } }
 
         mockMvc.get("/api/v1/applications/me") { bearer(s1) }.andExpect {
             status { isOk() }

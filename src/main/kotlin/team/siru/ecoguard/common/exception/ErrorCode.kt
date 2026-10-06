@@ -36,6 +36,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     // verifications
     INVALID_IMAGE(HttpStatus.BAD_REQUEST, "읽을 수 없는 이미지입니다."),
     OUT_OF_CERTIFICATION_TIME(HttpStatus.FORBIDDEN, "인증 시간이 아닙니다."),
+    VACATION_PERIOD(HttpStatus.FORBIDDEN, "방학 기간에는 인증할 수 없습니다."),
     ALREADY_SUBMITTED_TODAY(HttpStatus.CONFLICT, "오늘 이미 제출했습니다."),
     NOT_ASSIGNED_AREA(HttpStatus.FORBIDDEN, "배정된 구역에서만 인증할 수 있습니다."),
     VERIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "인증 내역을 찾을 수 없습니다."),
@@ -52,6 +53,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     APPEAL_ALREADY_PENDING(HttpStatus.CONFLICT, "검토 중인 이의신청이 있습니다."),
     INVALID_DECISION(HttpStatus.BAD_REQUEST, "승인 또는 반려만 선택할 수 있습니다."),
     ALREADY_PROCESSED(HttpStatus.CONFLICT, "이미 처리된 신청입니다."),
+    TOO_MANY_APPEAL_PHOTOS(HttpStatus.BAD_REQUEST, "이의신청 사진은 최대 3장까지 첨부할 수 있습니다."),
     APPEAL_NOT_FOUND(HttpStatus.NOT_FOUND, "이의신청을 찾을 수 없습니다."),
 
     // notices

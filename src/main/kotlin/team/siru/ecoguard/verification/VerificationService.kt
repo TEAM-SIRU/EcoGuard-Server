@@ -15,6 +15,8 @@ import team.siru.ecoguard.schoolcalendar.VacationService
 import team.siru.ecoguard.user.UserRepository
 import team.siru.ecoguard.verification.dto.MyVerificationResponse
 import team.siru.ecoguard.verification.dto.SubmitVerificationResponse
+import team.siru.ecoguard.verification.dto.TodayUnavailableReason
+import team.siru.ecoguard.verification.dto.TodayVerificationResponse
 import org.springframework.dao.DataIntegrityViolationException
 import java.time.Clock
 import java.time.LocalDateTime
@@ -44,7 +46,7 @@ class VerificationService(
             throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
         }
         if (vacationService.isVacation(now.toLocalDate())) {
-            throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
+            throw BusinessException(ErrorCode.VACATION_PERIOD)
         }
         if (!CleaningTimeWindow.isWithin(area.cleanTime, now.toLocalTime())) {
             throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
@@ -84,7 +86,41 @@ class VerificationService(
             }
         })
 
-        return SubmitVerificationResponse(verification.id, verification.status)
+        return SubmitVerificationResponse(verification.id, verification.status, verification.createdAt)
+    }
+
+    /** 인증 화면 진입용. 배정 구역, 인증 가능 시간, 서버 현재 시각, 오늘 제출 여부를 한 번에 돌려준다. */
+    @Transactional(readOnly = true)
+    fun getToday(studentId: Long): TodayVerificationResponse {
+        val area = assignmentRepository.findFirstByStudentIdOrderByCreatedAtDesc(studentId)?.area
+            ?: throw BusinessException(ErrorCode.NO_ASSIGNMENT)
+        val now = LocalDateTime.now(clock)
+        val today = now.toLocalDate()
+        val (start, end) = CleaningTimeWindow.parse(area.cleanTime)
+        val submitted = verificationRepository.findByStudentIdAndVerificationDate(studentId, today)
+
+        val unavailableReason = when {
+            submitted != null -> TodayUnavailableReason.ALREADY_SUBMITTED
+            !CleaningTimeWindow.isCertificationDay(today) -> TodayUnavailableReason.WEEKEND
+            vacationService.isVacation(today) -> TodayUnavailableReason.VACATION
+            now.toLocalTime().isBefore(start) -> TodayUnavailableReason.BEFORE_START
+            now.toLocalTime().isAfter(end) -> TodayUnavailableReason.AFTER_END
+            else -> null
+        }
+        return TodayVerificationResponse(
+            serverTime = now,
+            areaId = area.id,
+            areaName = area.name,
+            cleanTime = area.cleanTime,
+            startTime = start,
+            endTime = end,
+            canSubmit = unavailableReason == null,
+            unavailableReason = unavailableReason,
+            submitted = submitted != null,
+            verificationId = submitted?.id,
+            status = submitted?.status,
+            submittedAt = submitted?.createdAt,
+        )
     }
 
     @Transactional(readOnly = true)

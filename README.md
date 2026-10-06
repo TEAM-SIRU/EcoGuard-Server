@@ -24,8 +24,8 @@
 
 * 학기별 · 학년/반별 모집 (반별 최대 6명, 선착순)
 * 학생은 본인 반 모집만 조회 및 신청 가능
-* 신청 순서(N번째) 및 신청 결과(`PENDING` / `APPROVED` / `REJECTED`) 확인
-* 교사가 신청 순서 기준으로 모집 인원 확정
+* 신청 즉시 선착순으로 승인(`APPROVED`)되며, 정원이 차면 신청 불가
+* 신청 순서(N번째) 및 승인 상태 확인
 
 ### Cleaning Area
 
@@ -70,9 +70,7 @@
 ```text
 모집 공고
     ↓
-학생 신청 (선착순)
-    ↓
-교사 모집 인원 확정
+학생 신청 (선착순, 즉시 승인)
     ↓
 청소 구역 배정
     ↓
@@ -101,6 +99,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 | POST   | `/auth/login`  | -    | DataGSM 인가 코드로 로그인 |
 | POST   | `/auth/refresh` | -    | 리프레시 토큰으로 토큰 재발급 (사용할 때마다 갱신되어 로그인 유지) |
 | POST   | `/auth/logout` | 공통   | 로그아웃 (이전에 발급된 모든 기기의 토큰 무효화) |
+| GET    | `/users/me`    | 공통   | 내 정보 (이름, 역할, 학번, 학년, 반) |
 
 ### Recruitment
 
@@ -112,7 +111,6 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 | GET    | `/recruitments/current`                   | STUDENT | 내 반 모집 공고 조회 |
 | POST   | `/recruitments/{recruitmentId}/applications` | STUDENT | 환경지킴이 신청 |
 | GET    | `/recruitments/{recruitmentId}/applications` | TEACHER | 신청자 목록 (신청 순서대로) |
-| POST   | `/recruitments/{recruitmentId}/confirm`   | TEACHER | 선착순으로 모집 인원 확정 |
 | GET    | `/applications/me`                        | STUDENT | 내 신청 결과 및 신청 순서 |
 
 ### Cleaning Area
@@ -129,6 +127,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 | Method | Endpoint                              | Role            | Description |
 | ------ | ------------------------------------- | --------------- | ----------- |
 | POST   | `/verifications`                      | STUDENT         | 청소 인증 사진 제출 (`multipart/form-data`, `photo`) |
+| GET    | `/verifications/today`                | STUDENT         | 오늘 인증 정보 (배정 구역, 인증 가능 시간, 서버 시각, 제출 여부·시각, 불가 사유) |
 | GET    | `/verifications/me`                   | STUDENT         | 내 인증 내역 |
 | GET    | `/verifications/{verificationId}/review` | STUDENT, TEACHER | 검수 상태 및 결과 (학생은 본인 것만) |
 | GET    | `/verifications`                      | TEACHER         | 수동 검토 대기 목록 |
@@ -138,7 +137,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint                                  | Role    | Description |
 | ------ | ----------------------------------------- | ------- | ----------- |
-| POST   | `/verifications/{verificationId}/appeals` | STUDENT | 반려된 인증에 이의신청 |
+| POST   | `/verifications/{verificationId}/appeals` | STUDENT | 반려된 인증에 이의신청 (JSON `content`, 또는 `multipart/form-data`의 `content` + `photos` 최대 3장) |
 | GET    | `/appeals/me`                             | STUDENT | 내 이의신청 내역 (N차, 상태, 교사 답변) |
 | GET    | `/appeals?status=`                        | TEACHER | 이의신청 목록 |
 | PATCH  | `/appeals/{appealId}`                     | TEACHER | 이의신청 승인 / 반려 및 답변 |

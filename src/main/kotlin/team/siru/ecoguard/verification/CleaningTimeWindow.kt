@@ -24,7 +24,8 @@ object CleaningTimeWindow {
     /** 해당 날짜의 인증 가능 시간이 이미 지났는지 여부 */
     fun hasEnded(cleanTime: String?, now: LocalTime): Boolean = now.isAfter(parse(cleanTime).second)
 
-    private fun parse(cleanTime: String?): Pair<LocalTime, LocalTime> {
+    /** 인증 가능 시간(시작, 끝). 값이 없거나 형식이 잘못되면 기본 시간을 돌려준다. */
+    fun parse(cleanTime: String?): Pair<LocalTime, LocalTime> {
         val parts = cleanTime?.split("~")
         if (parts == null || parts.size != 2) {
             // 값이 아예 없으면 기본 시간을 쓰지만, 형식이 잘못된 경우는 설정 오류이므로 남겨 둔다.
