@@ -161,6 +161,45 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
             .andExpect { status { isUnauthorized() } }
     }
 
+    // 앱이 응답 바디 유무로 401 종류를 구분하므로 계약으로 고정한다.
+    // 로그인 실패(OAUTH_FAILED)만 에러 바디가 있고, 토큰 만료/무효 401은 바디가 없다.
+    @Test
+    fun `401 body contract - only login failure has error body`() {
+        mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"authCode":"not-a-valid-code"}"""
+        }.andExpect {
+            status { isUnauthorized() }
+            jsonPath("$.code") { value("OAUTH_FAILED") }
+            jsonPath("$.message") { exists() }
+        }
+
+        val loginBody = objectMapper.readTree(
+            mockMvc.post("/api/v1/auth/login") {
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(mapOf("authCode" to "STUDENT|9005|s5@test.local|Student|1101|1|1"))
+            }.andReturn().response.contentAsString,
+        )
+        val accessToken = loginBody.get("accessToken").asText()
+        val refreshToken = loginBody.get("refreshToken").asText()
+
+        // 토큰 없음 / 잘못된 토큰
+        for (header in listOf(null, "Bearer garbage")) {
+            mockMvc.get("/api/v1/notices") { if (header != null) header("Authorization", header) }
+                .andExpect { status { isUnauthorized() }; content { string("") } }
+        }
+
+        // 로그아웃으로 무효화된 액세스 토큰 / 리프레시 토큰
+        mockMvc.post("/api/v1/auth/logout") { header("Authorization", "Bearer $accessToken") }
+            .andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $accessToken") }
+            .andExpect { status { isUnauthorized() }; content { string("") } }
+        mockMvc.post("/api/v1/auth/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(mapOf("refreshToken" to refreshToken))
+        }.andExpect { status { isUnauthorized() }; content { string("") } }
+    }
+
     private fun login(authCode: String): String {
         val result = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
