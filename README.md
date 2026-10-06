@@ -96,6 +96,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint       | Role | Description |
 | ------ | -------------- | ---- | ----------- |
+| GET    | `/auth/callback` | -  | DataGSM redirect 수신 → `ecoguard://auth/callback`으로 302 (code/state/error/error_description 그대로 전달) |
 | POST   | `/auth/login`  | -    | DataGSM 인가 코드로 로그인 |
 | POST   | `/auth/refresh` | -    | 리프레시 토큰으로 토큰 재발급 (사용할 때마다 갱신되어 로그인 유지) |
 | POST   | `/auth/logout` | 공통   | 로그아웃 (이전에 발급된 모든 기기의 토큰 무효화) |
@@ -105,7 +106,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint                                  | Role    | Description |
 | ------ | ----------------------------------------- | ------- | ----------- |
-| POST   | `/recruitments`                           | TEACHER | 모집 공고 등록 |
+| POST   | `/recruitments`                           | TEACHER | 모집 공고 등록 (`semester`는 `"2026-2"`처럼 `연도-학기`, 활동 시간 `activityStartTime`/`activityEndTime`은 `"07:20"` 형식이며 생략하면 07:20~08:10) |
 | PATCH  | `/recruitments/{recruitmentId}`           | TEACHER | 모집 기간 / 인원 수정 |
 | GET    | `/recruitments`                           | TEACHER | 학년/반별 전체 모집 현황 |
 | GET    | `/recruitments/current`                   | STUDENT | 내 반 모집 공고 조회 |
@@ -126,7 +127,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint                              | Role            | Description |
 | ------ | ------------------------------------- | --------------- | ----------- |
-| POST   | `/verifications`                      | STUDENT         | 청소 인증 사진 제출 (`multipart/form-data`, `photo`) |
+| POST   | `/verifications`                      | STUDENT         | 청소 인증 사진 제출 (`multipart/form-data`, `photo`). 재전송 대비 헤더 `Idempotency-Key`(64자 이하), `X-Submit-Started-At`(ISO-8601) 선택 |
 | GET    | `/verifications/today`                | STUDENT         | 오늘 인증 정보 (배정 구역, 인증 가능 시간, 서버 시각, 제출 여부·시각, 불가 사유) |
 | GET    | `/verifications/me`                   | STUDENT         | 내 인증 내역 |
 | GET    | `/verifications/{verificationId}/review` | STUDENT, TEACHER | 검수 상태 및 결과 (학생은 본인 것만) |
@@ -140,7 +141,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 | POST   | `/verifications/{verificationId}/appeals` | STUDENT | 반려된 인증에 이의신청 (JSON `content`, 또는 `multipart/form-data`의 `content` + `photos` 최대 3장) |
 | GET    | `/appeals/me`                             | STUDENT | 내 이의신청 내역 (N차, 상태, 교사 답변) |
 | GET    | `/appeals?status=`                        | TEACHER | 이의신청 목록 |
-| PATCH  | `/appeals/{appealId}`                     | TEACHER | 이의신청 승인 / 반려 및 답변 |
+| PATCH  | `/appeals/{appealId}`                     | TEACHER | 이의신청 승인 / 반려 및 답변 (`replyTitle` 제목, `reply` 본문) |
 
 ### Activity
 
@@ -155,8 +156,8 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint              | Role    | Description |
 | ------ | --------------------- | ------- | ----------- |
-| GET    | `/notices`            | 공통      | 공지 목록 (최신순) |
-| GET    | `/notices/{noticeId}` | 공통      | 공지 상세 (이전 / 다음 공지 ID 포함) |
+| GET    | `/notices`            | 공통      | 공지 목록 (최신순, 본문 미리보기와 내 읽음 여부 `isRead` 포함) |
+| GET    | `/notices/{noticeId}` | 공통      | 공지 상세 (이전 / 다음 공지 ID 포함, 열면 읽음으로 기록) |
 | POST   | `/notices`            | TEACHER | 공지 작성 |
 | PATCH  | `/notices/{noticeId}` | TEACHER | 공지 수정 |
 | DELETE | `/notices/{noticeId}` | TEACHER | 공지 삭제 |
@@ -228,6 +229,20 @@ API 요청
 
 발급된 액세스 토큰을 이용하여 인증이 필요한 API에 접근합니다. 액세스 토큰이 만료되면 `/auth/refresh`로 재발급하고, 로그아웃하면 이전에 발급된 토큰이 모두 무효화됩니다.
 
+리프레시 토큰은 7일 유효하며 사용할 때마다 새로 발급됩니다(sliding). 서버는 세션을 저장하지 않으므로 리프레시할 때 이전 리프레시 토큰이 폐기되지는 않고, 로그아웃 시 해당 사용자의 모든 토큰이 한꺼번에 무효화됩니다(기기 단위 차단 불가).
+
+### 401 응답 규칙
+
+앱은 응답 바디 유무로 401의 종류를 구분하므로 아래 규칙을 API 계약으로 고정합니다.
+
+| 상황 | 상태 | 응답 바디 |
+| ---- | ---- | --------- |
+| 로그인 실패 (`/auth/login`, `OAUTH_FAILED`) | 401 | 있음 (`{"code": "OAUTH_FAILED", "message": "..."}`) |
+| 액세스 토큰 없음 / 만료 / 무효 | 401 | 없음 |
+| 리프레시 토큰 만료 / 무효 / 로그아웃으로 폐기됨 (`/auth/refresh`) | 401 | 없음 |
+
+401로 응답하는 에러 코드는 `UNAUTHORIZED`(바디 없음)와 `OAUTH_FAILED`(바디 있음) 두 가지뿐이며, 새 401용 에러 코드를 추가하면 이 계약이 깨집니다.
+
 앱 스토어 심사용으로 고정된 데모 학생 계정을 켤 수 있습니다 (아래 환경 변수 참고).
 
 ## Requirements
@@ -264,7 +279,7 @@ JWT_REFRESH_VALIDITY=604800                    # 선택, 리프레시 토큰 유
 GSM_OAUTH_MOCK=false                           # 기본 false. 로컬 개발에서만 true
 GSM_OAUTH_CLIENT_ID=                           # mock=false일 때 필수 (datagsm.kr/clients에서 발급)
 GSM_OAUTH_CLIENT_SECRET=                       # mock=false일 때 필수
-GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수
+GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수. 서버 callback 주소(https://<서버>/api/v1/auth/callback). dataGSM 등록값·앱 인가 요청값과 정확히 일치해야 함
 
 AI_REVIEW_PROVIDER=gemini                      # 선택, gemini(기본) 또는 ai-server
 GEMINI_API_KEY=                                # gemini일 때 필요. 비어 있으면 모두 수동 검토

@@ -20,6 +20,7 @@ import team.siru.ecoguard.verification.dto.TodayVerificationResponse
 import org.springframework.dao.DataIntegrityViolationException
 import java.time.Clock
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
 
 @Service
 class VerificationService(
@@ -29,11 +30,26 @@ class VerificationService(
     private val fileStorageService: FileStorageService,
     private val aiReviewService: AiReviewService,
     private val vacationService: VacationService,
+    private val properties: VerificationProperties,
     private val clock: Clock,
 ) {
 
     @Transactional
-    fun submit(studentId: Long, areaId: Long?, photo: MultipartFile): SubmitVerificationResponse {
+    fun submit(
+        studentId: Long,
+        areaId: Long?,
+        photo: MultipartFile,
+        idempotencyKey: String? = null,
+        startedAtOffset: OffsetDateTime? = null,
+    ): SubmitVerificationResponse {
+        val startedAt = startedAtOffset?.atZoneSameInstant(clock.zone)?.toLocalDateTime()
+        // 같은 키로 이미 접수된 요청이면 새로 처리하지 않고 처음 접수 결과를 그대로 돌려준다 (마감 뒤 재전송도 포함).
+        if (idempotencyKey != null) {
+            verificationRepository.findByStudentIdAndIdempotencyKey(studentId, idempotencyKey)?.let {
+                return SubmitVerificationResponse(it.id, it.status, it.createdAt)
+            }
+        }
+
         // 인증은 배정받은 구역에 대해서만 가능하다. areaId는 선택값이며, 보내면 배정 구역과 일치해야 한다.
         val area = assignmentRepository.findFirstByStudentIdOrderByCreatedAtDesc(studentId)?.area
             ?: throw BusinessException(ErrorCode.NO_ASSIGNMENT)
@@ -48,13 +64,15 @@ class VerificationService(
         if (vacationService.isVacation(now.toLocalDate())) {
             throw BusinessException(ErrorCode.VACATION_PERIOD)
         }
-        if (!CleaningTimeWindow.isWithin(area.cleanTime, now.toLocalTime())) {
+        if (!CleaningTimeWindow.isWithin(area.cleanTime, now.toLocalTime()) &&
+            !isLateRetryAllowed(area.cleanTime, now, idempotencyKey, startedAt)
+        ) {
             throw BusinessException(ErrorCode.OUT_OF_CERTIFICATION_TIME)
         }
 
         val today = now.toLocalDate()
-        if (verificationRepository.existsByStudentIdAndVerificationDate(studentId, today)) {
-            throw BusinessException(ErrorCode.ALREADY_SUBMITTED_TODAY)
+        verificationRepository.findByStudentIdAndVerificationDate(studentId, today)?.let {
+            throw BusinessException(ErrorCode.ALREADY_SUBMITTED_TODAY, submittedAt = it.createdAt)
         }
 
         val imageBytes = runCatching { photo.bytes }.getOrElse { throw BusinessException(ErrorCode.INVALID_IMAGE) }
@@ -65,7 +83,13 @@ class VerificationService(
         // 동시에 두 번 제출되면 위의 exists 검사를 둘 다 통과하므로, 유니크 제약 위반도 같은 오류로 변환한다.
         val verification = try {
             verificationRepository.saveAndFlush(
-                Verification(student = student, area = area, photoUrl = photoUrl, verificationDate = today),
+                Verification(
+                    student = student,
+                    area = area,
+                    photoUrl = photoUrl,
+                    verificationDate = today,
+                    idempotencyKey = idempotencyKey,
+                ),
             )
         } catch (e: DataIntegrityViolationException) {
             throw BusinessException(ErrorCode.ALREADY_SUBMITTED_TODAY)
@@ -87,6 +111,23 @@ class VerificationService(
         })
 
         return SubmitVerificationResponse(verification.id, verification.status, verification.createdAt)
+    }
+
+    /**
+     * 마감 직전에 전송을 시작한 요청의 재시도를 마감 뒤에도 받아 준다.
+     * 재시도 키가 있고, 전송 시작 시각이 인증 가능 시간 안이며, 지금이 마감 후 유예 시간 안일 때만 허용한다.
+     */
+    private fun isLateRetryAllowed(
+        cleanTime: String?,
+        now: LocalDateTime,
+        idempotencyKey: String?,
+        startedAt: LocalDateTime?,
+    ): Boolean {
+        if (idempotencyKey == null || startedAt == null || properties.lateRetryGraceMinutes <= 0) return false
+        if (startedAt.isAfter(now) || startedAt.toLocalDate() != now.toLocalDate()) return false
+        if (!CleaningTimeWindow.isWithin(cleanTime, startedAt.toLocalTime())) return false
+        val end = CleaningTimeWindow.parse(cleanTime).second
+        return !now.toLocalTime().isAfter(end.plusMinutes(properties.lateRetryGraceMinutes))
     }
 
     /** 인증 화면 진입용. 배정 구역, 인증 가능 시간, 서버 현재 시각, 오늘 제출 여부를 한 번에 돌려준다. */
