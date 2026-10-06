@@ -57,6 +57,8 @@ data class ApplyResponse(
 )
 
 data class ApplicationStatusResponse(
+    /** 이 신청이 속한 모집 공고 (학기 구분용) */
+    val recruitmentId: Long,
     val status: ApplicationStatus,
     /** 신청 순서 (N번째) */
     val order: Long,
