@@ -32,6 +32,7 @@ class SecurityConfig(
             .cors { it.configurationSource(corsConfigurationSource()) }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
+                it.requestMatchers("/api/v1/auth/callback").permitAll()
                 it.requestMatchers("/api/v1/auth/login").permitAll()
                 it.requestMatchers("/api/v1/auth/refresh").permitAll()
                 it.requestMatchers("/files/**").permitAll()

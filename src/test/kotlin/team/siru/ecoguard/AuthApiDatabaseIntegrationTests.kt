@@ -200,6 +200,29 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
         }.andExpect { status { isUnauthorized() }; content { string("") } }
     }
 
+    @Test
+    fun `oauth callback redirects to app scheme without auth and passes params through`() {
+        mockMvc.get("/api/v1/auth/callback?code=abc123&state=xyz")
+            .andExpect {
+                status { isFound() }
+                header { string("Location", "ecoguard://auth/callback?code=abc123&state=xyz") }
+            }
+
+        mockMvc.get("/api/v1/auth/callback") {
+            param("error", "access_denied")
+            param("error_description", "user denied & cancelled")
+            param("state", "s+1")
+        }.andExpect {
+            status { isFound() }
+            header {
+                string(
+                    "Location",
+                    "ecoguard://auth/callback?state=s%2B1&error=access_denied&error_description=user%20denied%20%26%20cancelled",
+                )
+            }
+        }
+    }
+
     private fun login(authCode: String): String {
         val result = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON

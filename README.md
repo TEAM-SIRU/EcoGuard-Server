@@ -96,6 +96,7 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 | Method | Endpoint       | Role | Description |
 | ------ | -------------- | ---- | ----------- |
+| GET    | `/auth/callback` | -  | DataGSM redirect 수신 → `ecoguard://auth/callback`으로 302 (code/state/error/error_description 그대로 전달) |
 | POST   | `/auth/login`  | -    | DataGSM 인가 코드로 로그인 |
 | POST   | `/auth/refresh` | -    | 리프레시 토큰으로 토큰 재발급 (사용할 때마다 갱신되어 로그인 유지) |
 | POST   | `/auth/logout` | 공통   | 로그아웃 (이전에 발급된 모든 기기의 토큰 무효화) |
@@ -278,7 +279,7 @@ JWT_REFRESH_VALIDITY=604800                    # 선택, 리프레시 토큰 유
 GSM_OAUTH_MOCK=false                           # 기본 false. 로컬 개발에서만 true
 GSM_OAUTH_CLIENT_ID=                           # mock=false일 때 필수 (datagsm.kr/clients에서 발급)
 GSM_OAUTH_CLIENT_SECRET=                       # mock=false일 때 필수
-GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수
+GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수. 서버 callback 주소(https://<서버>/api/v1/auth/callback). dataGSM 등록값·앱 인가 요청값과 정확히 일치해야 함
 
 AI_REVIEW_PROVIDER=gemini                      # 선택, gemini(기본) 또는 ai-server
 GEMINI_API_KEY=                                # gemini일 때 필요. 비어 있으면 모두 수동 검토
