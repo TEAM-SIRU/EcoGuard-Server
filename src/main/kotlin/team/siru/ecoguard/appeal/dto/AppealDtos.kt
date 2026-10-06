@@ -21,8 +21,10 @@ data class CreateAppealResponse(
 data class AppealDecisionRequest(
     /** APPROVED 또는 REJECTED. 그 외 값은 INVALID_DECISION 으로 응답하기 위해 문자열로 받는다. */
     val decision: String? = null,
-    /** 교사 답변. 반려 시 학생에게 사유로 보여진다. */
+    /** 교사 답변 본문. 반려 시 학생에게 사유로 보여진다. */
     val reply: String? = null,
+    /** 교사 답변 제목 (선택) */
+    val replyTitle: String? = null,
 )
 
 data class AppealResponse(
@@ -39,6 +41,7 @@ data class AppealResponse(
     /** 이의신청 때 첨부한 사진 */
     val photoUrls: List<String>,
     val status: AppealStatus,
+    val replyTitle: String?,
     val reply: String?,
     val createdAt: LocalDateTime,
 ) {
@@ -56,6 +59,7 @@ data class AppealResponse(
             content = appeal.content,
             photoUrls = appeal.photoUrls.toList(),
             status = appeal.status,
+            replyTitle = appeal.replyTitle,
             reply = appeal.reply,
             createdAt = appeal.createdAt,
         )
@@ -75,6 +79,7 @@ data class MyAppealResponse(
     val status: AppealStatus,
     /** 승인되어 적립된 시간(분). 승인 전이거나 반려면 null */
     val awardedMinutes: Int?,
+    val replyTitle: String?,
     val reply: String?,
     val createdAt: LocalDateTime,
 ) {
@@ -89,6 +94,7 @@ data class MyAppealResponse(
             photoUrls = appeal.photoUrls.toList(),
             status = appeal.status,
             awardedMinutes = if (appeal.status == AppealStatus.APPROVED) APPEAL_APPROVED_MINUTES else null,
+            replyTitle = appeal.replyTitle,
             reply = appeal.reply,
             createdAt = appeal.createdAt,
         )

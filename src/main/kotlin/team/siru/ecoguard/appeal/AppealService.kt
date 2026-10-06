@@ -70,7 +70,7 @@ class AppealService(
     }
 
     @Transactional
-    fun decide(appealId: Long, rawDecision: String?, reply: String?) {
+    fun decide(appealId: Long, rawDecision: String?, reply: String?, replyTitle: String? = null) {
         val decision = AppealStatus.entries.firstOrNull { it.name == rawDecision && it != AppealStatus.PENDING }
             ?: throw BusinessException(ErrorCode.INVALID_DECISION)
         val appeal = appealRepository.findWithLockById(appealId) ?: throw BusinessException(ErrorCode.APPEAL_NOT_FOUND)
@@ -80,6 +80,7 @@ class AppealService(
 
         appeal.status = decision
         appeal.reply = reply
+        appeal.replyTitle = replyTitle
         if (decision == AppealStatus.APPROVED) {
             val verification = appeal.verification
             if (verification.status != VerificationStatus.APPROVED) {

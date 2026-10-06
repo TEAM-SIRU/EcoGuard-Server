@@ -9,6 +9,7 @@ import jakarta.persistence.Table
 import team.siru.ecoguard.common.BaseEntity
 import team.siru.ecoguard.user.User
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 @Entity
 @Table(name = "recruitments")
@@ -34,7 +35,16 @@ class Recruitment(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "teacher_id", nullable = false)
     var teacher: User,
+
+    /** 청소 활동 시작/종료 시각. null이면 기본값(07:20~08:10)을 쓴다. */
+    var activityStartTime: LocalTime? = null,
+
+    var activityEndTime: LocalTime? = null,
 ) : BaseEntity() {
+
+    fun effectiveActivityStart(): LocalTime = activityStartTime ?: DEFAULT_ACTIVITY_START
+
+    fun effectiveActivityEnd(): LocalTime = activityEndTime ?: DEFAULT_ACTIVITY_END
 
     fun isClosed(now: LocalDateTime): Boolean = endDate.isBefore(now)
 
@@ -44,6 +54,11 @@ class Recruitment(
         now.isBefore(startDate) -> RecruitmentPeriodStatus.UPCOMING
         isClosed(now) -> RecruitmentPeriodStatus.CLOSED
         else -> RecruitmentPeriodStatus.OPEN
+    }
+
+    companion object {
+        val DEFAULT_ACTIVITY_START: LocalTime = LocalTime.of(7, 20)
+        val DEFAULT_ACTIVITY_END: LocalTime = LocalTime.of(8, 10)
     }
 }
 

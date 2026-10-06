@@ -64,7 +64,7 @@ class AppealController(
     @PatchMapping("/appeals/{appealId}")
     @PreAuthorize("hasRole('TEACHER')")
     fun decide(@PathVariable appealId: Long, @Valid @RequestBody request: AppealDecisionRequest): ResponseEntity<Void> {
-        appealService.decide(appealId, request.decision, request.reply)
+        appealService.decide(appealId, request.decision, request.reply, request.replyTitle)
         return ResponseEntity.ok().build()
     }
 

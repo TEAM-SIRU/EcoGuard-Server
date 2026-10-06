@@ -6,6 +6,7 @@ import java.time.LocalDateTime
 
 interface VerificationRepository : JpaRepository<Verification, Long> {
     fun existsByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Boolean
+    fun findByStudentIdAndIdempotencyKey(studentId: Long, idempotencyKey: String): Verification?
     fun findByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Verification?
     fun findByStudentIdOrderByVerificationDateDesc(studentId: Long): List<Verification>
     fun findByStatusOrderByCreatedAtAsc(status: VerificationStatus): List<Verification>

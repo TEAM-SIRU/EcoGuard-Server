@@ -19,7 +19,10 @@ import java.time.LocalDate
 @Entity
 @Table(
     name = "verifications",
-    uniqueConstraints = [UniqueConstraint(columnNames = ["student_id", "verification_date"])],
+    uniqueConstraints = [
+        UniqueConstraint(columnNames = ["student_id", "verification_date"]),
+        UniqueConstraint(columnNames = ["student_id", "idempotency_key"]),
+    ],
 )
 class Verification(
     @ManyToOne(fetch = FetchType.LAZY)
@@ -46,4 +49,8 @@ class Verification(
     var failReasons: MutableList<String> = mutableListOf(),
 
     var manualReviewReason: String? = null,
+
+    /** 앱이 재전송할 때 중복 접수를 막기 위한 `Idempotency-Key`. 보내지 않은 요청은 null. */
+    @Column(length = 64)
+    var idempotencyKey: String? = null,
 ) : BaseEntity()
