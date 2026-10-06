@@ -47,9 +47,9 @@ class NoticeController(
 
     @GetMapping
     fun getList(): ResponseEntity<List<NoticeListItemResponse>> =
-        ResponseEntity.ok(noticeService.getList())
+        ResponseEntity.ok(noticeService.getList(SecurityUtils.currentUserId()))
 
     @GetMapping("/{noticeId}")
     fun getDetail(@PathVariable noticeId: Long): ResponseEntity<NoticeDetailResponse> =
-        ResponseEntity.ok(noticeService.getDetail(noticeId))
+        ResponseEntity.ok(noticeService.getDetail(SecurityUtils.currentUserId(), noticeId))
 }

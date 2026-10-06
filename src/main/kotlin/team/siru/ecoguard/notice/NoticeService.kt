@@ -15,6 +15,8 @@ import team.siru.ecoguard.user.UserRepository
 class NoticeService(
     private val noticeRepository: NoticeRepository,
     private val userRepository: UserRepository,
+    private val noticeReadRepository: NoticeReadRepository,
+    private val noticeReadRecorder: NoticeReadRecorder,
 ) {
 
     @Transactional
@@ -40,14 +42,20 @@ class NoticeService(
     @Transactional
     fun delete(noticeId: Long) {
         val notice = getNoticeOrThrow(noticeId)
+        noticeReadRepository.deleteByNoticeId(noticeId)
         noticeRepository.delete(notice)
     }
 
-    fun getList(): List<NoticeListItemResponse> =
-        noticeRepository.findAllByOrderByCreatedAtDesc().map(NoticeListItemResponse::from)
+    @Transactional(readOnly = true)
+    fun getList(userId: Long): List<NoticeListItemResponse> {
+        val readIds = noticeReadRepository.findNoticeIdsByUserId(userId).toSet()
+        return noticeRepository.findAllByOrderByCreatedAtDesc().map { NoticeListItemResponse.from(it, it.id in readIds) }
+    }
 
-    fun getDetail(noticeId: Long): NoticeDetailResponse {
+    /** 상세를 열면 해당 사용자에게는 읽음으로 기록된다. */
+    fun getDetail(userId: Long, noticeId: Long): NoticeDetailResponse {
         val notice = getNoticeOrThrow(noticeId)
+        noticeReadRecorder.markRead(noticeId, userId)
         return NoticeDetailResponse.from(
             notice,
             previousNoticeId = noticeRepository.findFirstByIdLessThanOrderByIdDesc(noticeId)?.id,

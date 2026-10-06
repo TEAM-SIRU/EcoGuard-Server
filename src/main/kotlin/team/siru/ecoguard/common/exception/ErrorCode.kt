@@ -15,6 +15,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
 
     // recruitments / applications
     INVALID_PERIOD(HttpStatus.BAD_REQUEST, "모집 기간이 올바르지 않습니다."),
+    INVALID_ACTIVITY_TIME(HttpStatus.BAD_REQUEST, "활동 시작 시각은 종료 시각보다 빨라야 합니다."),
     INVALID_MAX_COUNT(HttpStatus.BAD_REQUEST, "모집 인원이 올바르지 않습니다. (최대 6명)"),
     OUT_OF_PERIOD(HttpStatus.BAD_REQUEST, "모집 기간이 아닙니다."),
     ALREADY_APPLIED(HttpStatus.CONFLICT, "이미 신청했습니다."),

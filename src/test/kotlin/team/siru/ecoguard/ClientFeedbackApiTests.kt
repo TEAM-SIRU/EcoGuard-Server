@@ -12,7 +12,9 @@ import org.springframework.context.annotation.Primary
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.multipart
 import org.springframework.test.web.servlet.post
 import team.siru.ecoguard.activity.ServiceTimeLogRepository
@@ -21,6 +23,9 @@ import team.siru.ecoguard.cleaningarea.Assignment
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.cleaningarea.CleaningArea
 import team.siru.ecoguard.cleaningarea.CleaningAreaRepository
+import team.siru.ecoguard.notice.NoticeReadRepository
+import team.siru.ecoguard.notice.NoticeRepository
+import team.siru.ecoguard.recruitment.RecruitmentRepository
 import team.siru.ecoguard.user.UserRepository
 import team.siru.ecoguard.verification.Verification
 import team.siru.ecoguard.verification.VerificationRepository
@@ -48,6 +53,9 @@ class ClientFeedbackApiTests @Autowired constructor(
     private val verificationRepository: VerificationRepository,
     private val appealRepository: AppealRepository,
     private val serviceTimeLogRepository: ServiceTimeLogRepository,
+    private val noticeRepository: NoticeRepository,
+    private val noticeReadRepository: NoticeReadRepository,
+    private val recruitmentRepository: RecruitmentRepository,
 ) {
 
     @TestConfiguration
@@ -79,6 +87,9 @@ class ClientFeedbackApiTests @Autowired constructor(
         serviceTimeLogRepository.deleteAll()
         verificationRepository.deleteAll()
         assignmentRepository.deleteAll()
+        recruitmentRepository.deleteAll()
+        noticeReadRepository.deleteAll()
+        noticeRepository.deleteAll()
         cleaningAreaRepository.deleteAll()
         userRepository.deleteAll()
     }
@@ -172,6 +183,128 @@ class ClientFeedbackApiTests @Autowired constructor(
         mockMvc.get("/api/v1/appeals/me") { header("Authorization", "Bearer $token") }.andExpect {
             jsonPath("$[0].photoUrls.length()") { value(3) }
             jsonPath("$[0].awardedMinutes") { doesNotExist() }
+        }
+    }
+
+    @Test
+    fun `resubmission with the same idempotency key returns the first result`() {
+        fun submit(key: String?, startedAt: String? = null) = mockMvc.multipart("/api/v1/verifications") {
+            file(MockMultipartFile("photo", "photo.png", "image/png", pngBytes()))
+            header("Authorization", "Bearer $token")
+            key?.let { header("Idempotency-Key", it) }
+            startedAt?.let { header("X-Submit-Started-At", it) }
+        }
+
+        val first = submit("key-1").andExpect { status { isCreated() } }.andReturn().response.contentAsString
+        val firstId = objectMapper.readTree(first).get("verificationId").asLong()
+
+        submit("key-1").andExpect {
+            status { isCreated() }
+            jsonPath("$.verificationId") { value(firstId) }
+        }
+        assertEquals(1, verificationRepository.count())
+
+        // 키 없이 또 보내면 이미 제출한 것으로 처리하고, 기존 제출 시각을 알려 준다.
+        submit(null).andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("ALREADY_SUBMITTED_TODAY") }
+            jsonPath("$.submittedAt") { exists() }
+        }
+    }
+
+    @Test
+    fun `retry started before the deadline is accepted shortly after it`() {
+        fun submit(key: String?, startedAt: String?) = mockMvc.multipart("/api/v1/verifications") {
+            file(MockMultipartFile("photo", "photo.png", "image/png", pngBytes()))
+            header("Authorization", "Bearer $token")
+            key?.let { header("Idempotency-Key", it) }
+            startedAt?.let { header("X-Submit-Started-At", it) }
+        }
+
+        clock.set(seoul(2026, 10, 5, 8, 12))
+        // 시작 시각 정보가 없거나 키가 없으면 마감 뒤에는 받지 않는다.
+        submit("k", null).andExpect { status { isForbidden() } }
+        submit(null, "2026-10-05T08:09:00+09:00").andExpect { status { isForbidden() } }
+        // 마감 전에 시작했고 유예 시간(5분) 안이면 받는다.
+        submit("k", "2026-10-05T08:09:00+09:00").andExpect { status { isCreated() } }
+
+        // 유예 시간이 지나면 받지 않는다.
+        verificationRepository.deleteAll()
+        clock.set(seoul(2026, 10, 5, 8, 20))
+        submit("k2", "2026-10-05T08:09:00+09:00").andExpect { status { isForbidden() } }
+        // 마감 뒤에 시작한 요청은 받지 않는다.
+        clock.set(seoul(2026, 10, 5, 8, 12))
+        submit("k3", "2026-10-05T08:11:00+09:00").andExpect { status { isForbidden() } }
+    }
+
+    @Test
+    fun `notice list tracks read state and appeal reply has a separate title`() {
+        val teacher = login("TEACHER|9602|t@test.local|Teacher|||")
+        val noticeId = objectMapper.readTree(
+            mockMvc.post("/api/v1/notices") {
+                header("Authorization", "Bearer $teacher")
+                contentType = MediaType.APPLICATION_JSON
+                content = """{"title":"Hello","content":"first   line\nsecond"}"""
+            }.andExpect { status { isCreated() } }.andReturn().response.contentAsString,
+        ).get("noticeId").asLong()
+
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $token") }.andExpect {
+            jsonPath("$[0].isRead") { value(false) }
+            jsonPath("$[0].preview") { value("first line second") }
+        }
+        mockMvc.get("/api/v1/notices/$noticeId") { header("Authorization", "Bearer $token") }
+            .andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $token") }
+            .andExpect { jsonPath("$[0].isRead") { value(true) } }
+        // 읽음은 사용자별이다.
+        mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $teacher") }
+            .andExpect { jsonPath("$[0].isRead") { value(false) } }
+
+        val student = userRepository.findByGsmAccountId(9601)!!
+        val rejected = verificationRepository.save(
+            Verification(
+                student = student, area = area, photoUrl = "/files/a.jpg",
+                verificationDate = LocalDate.of(2026, 10, 2), status = VerificationStatus.REJECTED,
+            ),
+        )
+        val appealId = objectMapper.readTree(
+            mockMvc.post("/api/v1/verifications/${rejected.id}/appeals") {
+                header("Authorization", "Bearer $token")
+                contentType = MediaType.APPLICATION_JSON
+                content = """{"content":"please"}"""
+            }.andExpect { status { isCreated() } }.andReturn().response.contentAsString,
+        ).get("appealId").asLong()
+        mockMvc.patch("/api/v1/appeals/$appealId") {
+            header("Authorization", "Bearer $teacher")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"decision":"REJECTED","replyTitle":"Photo unclear","reply":"Retake it"}"""
+        }.andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/appeals/me") { header("Authorization", "Bearer $token") }.andExpect {
+            jsonPath("$[0].replyTitle") { value("Photo unclear") }
+            jsonPath("$[0].reply") { value("Retake it") }
+        }
+
+        mockMvc.delete("/api/v1/notices/$noticeId") { header("Authorization", "Bearer $teacher") }
+            .andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun `recruitment exposes activity time with a default and validates it`() {
+        val teacher = login("TEACHER|9603|t2@test.local|Teacher2|||")
+        fun create(extra: String) = mockMvc.post("/api/v1/recruitments") {
+            header("Authorization", "Bearer $teacher")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"semester":"2026-2","grade":1,"classNo":1,"maxCount":3,
+                "startDate":"2026-10-01T00:00:00","endDate":"2026-10-30T00:00:00"$extra}"""
+        }
+
+        create(""","activityStartTime":"08:10","activityEndTime":"07:20"""")
+            .andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_ACTIVITY_TIME") } }
+        create(""","activityStartTime":"07:00","activityEndTime":"07:50"""").andExpect { status { isCreated() } }
+
+        mockMvc.get("/api/v1/recruitments/current") { header("Authorization", "Bearer $token") }.andExpect {
+            jsonPath("$.activityTime.start") { value("07:00:00") }
+            jsonPath("$.activityTime.end") { value("07:50:00") }
         }
     }
 

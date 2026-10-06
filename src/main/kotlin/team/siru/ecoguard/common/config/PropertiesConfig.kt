@@ -10,6 +10,7 @@ import team.siru.ecoguard.cleaningarea.CleaningAreaSeedProperties
 import team.siru.ecoguard.common.security.JwtProperties
 import team.siru.ecoguard.common.storage.FileStorageProperties
 import team.siru.ecoguard.schoolcalendar.NeisProperties
+import team.siru.ecoguard.verification.VerificationProperties
 
 @Configuration
 @EnableConfigurationProperties(
@@ -21,5 +22,6 @@ import team.siru.ecoguard.schoolcalendar.NeisProperties
     DemoAccountProperties::class,
     CleaningAreaSeedProperties::class,
     NeisProperties::class,
+    VerificationProperties::class,
 )
 class PropertiesConfig
