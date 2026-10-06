@@ -8,4 +8,5 @@ interface RecruitmentApplicationRepository : JpaRepository<RecruitmentApplicatio
     fun countByRecruitmentIdAndIdLessThanEqual(recruitmentId: Long, id: Long): Long
     fun findByRecruitmentIdOrderByCreatedAtAscIdAsc(recruitmentId: Long): List<RecruitmentApplication>
     fun findFirstByStudentIdOrderByCreatedAtDesc(studentId: Long): RecruitmentApplication?
+    fun deleteByStudentId(studentId: Long)
 }
