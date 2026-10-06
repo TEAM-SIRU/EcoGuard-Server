@@ -7,4 +7,5 @@ interface AssignmentRepository : JpaRepository<Assignment, Long> {
     fun findByAreaIdOrderByCreatedAtAsc(areaId: Long): List<Assignment>
     fun findByStudentId(studentId: Long): List<Assignment>
     fun existsByStudentId(studentId: Long): Boolean
+    fun deleteByStudentId(studentId: Long)
 }

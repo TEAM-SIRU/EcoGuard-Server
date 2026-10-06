@@ -201,6 +201,56 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `withdraw anonymizes the student, revokes tokens, and re-login creates a new account`() {
+        val authCode = "STUDENT|9006|s6@test.local|Student|1102|1|1"
+        val loginBody = objectMapper.readTree(
+            mockMvc.post("/api/v1/auth/login") {
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(mapOf("authCode" to authCode))
+            }.andReturn().response.contentAsString,
+        )
+        val accessToken = loginBody.get("accessToken").asText()
+        val refreshToken = loginBody.get("refreshToken").asText()
+        val oldUserId = userRepository.findByGsmAccountId(9006)!!.id
+
+        mockMvc.delete("/api/v1/users/me") { header("Authorization", "Bearer $accessToken") }
+            .andExpect { status { isOk() } }
+
+        val withdrawn = userRepository.findById(oldUserId).get()
+        assertEquals("탈퇴한 사용자", withdrawn.name)
+        assertEquals("withdrawn-$oldUserId@withdrawn.invalid", withdrawn.email)
+        assertEquals(-oldUserId, withdrawn.gsmAccountId)
+        assertEquals(null, withdrawn.studentNumber)
+        assertEquals(null, withdrawn.grade)
+        assertEquals(null, withdrawn.classNo)
+
+        mockMvc.get("/api/v1/users/me") { header("Authorization", "Bearer $accessToken") }
+            .andExpect { status { isUnauthorized() } }
+        mockMvc.post("/api/v1/auth/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(mapOf("refreshToken" to refreshToken))
+        }.andExpect { status { isUnauthorized() } }
+
+        // 같은 dataGSM 계정으로 다시 로그인하면 새 사용자로 가입된다.
+        val newToken = login(authCode)
+        val newUser = userRepository.findByGsmAccountId(9006)!!
+        assertTrue(newUser.id != oldUserId)
+        assertEquals("Student", newUser.name)
+        mockMvc.get("/api/v1/users/me") { header("Authorization", "Bearer $newToken") }
+            .andExpect { status { isOk() }; jsonPath("$.userId") { value(newUser.id) } }
+    }
+
+    @Test
+    fun `withdraw is rejected for teachers and unauthenticated requests`() {
+        val teacherToken = login("TEACHER|9007|t7@test.local|Teacher|||")
+
+        mockMvc.delete("/api/v1/users/me") { header("Authorization", "Bearer $teacherToken") }
+            .andExpect { status { isForbidden() } }
+        mockMvc.delete("/api/v1/users/me").andExpect { status { isUnauthorized() } }
+        assertEquals("Teacher", userRepository.findByGsmAccountId(9007)!!.name)
+    }
+
+    @Test
     fun `oauth callback redirects to app scheme without auth and passes params through`() {
         mockMvc.get("/api/v1/auth/callback?code=abc123&state=xyz")
             .andExpect {
