@@ -20,10 +20,19 @@ data class UpdateNoticeRequest(
 data class NoticeListItemResponse(
     val noticeId: Long,
     val title: String,
+    /** 본문 앞부분 (공백 정리 후 최대 100자) */
+    val preview: String,
     val createdAt: LocalDateTime,
 ) {
     companion object {
-        fun from(notice: Notice) = NoticeListItemResponse(notice.id, notice.title, notice.createdAt)
+        private const val PREVIEW_LENGTH = 100
+
+        fun from(notice: Notice) = NoticeListItemResponse(
+            noticeId = notice.id,
+            title = notice.title,
+            preview = notice.content.replace(Regex("\\s+"), " ").trim().take(PREVIEW_LENGTH),
+            createdAt = notice.createdAt,
+        )
     }
 }
 

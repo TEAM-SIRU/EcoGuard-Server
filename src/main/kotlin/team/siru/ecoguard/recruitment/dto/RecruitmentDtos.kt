@@ -46,19 +46,16 @@ data class ApplyResponse(
     val order: Long,
     val studentNumber: String?,
     val name: String,
+    val appliedAt: LocalDateTime,
 )
 
 data class ApplicationStatusResponse(
     val status: ApplicationStatus,
     /** 신청 순서 (N번째) */
     val order: Long,
+    val appliedAt: LocalDateTime,
     /** 승인되었지만 아직 청소구역이 배정되지 않은 상태 */
     val waitingForAssignment: Boolean,
-)
-
-data class ConfirmRecruitmentResponse(
-    val approvedCount: Int,
-    val rejectedCount: Int,
 )
 
 data class RecruitmentPeriod(

@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile
 import team.siru.ecoguard.common.security.SecurityUtils
 import team.siru.ecoguard.verification.dto.MyVerificationResponse
 import team.siru.ecoguard.verification.dto.SubmitVerificationResponse
+import team.siru.ecoguard.verification.dto.TodayVerificationResponse
 
 @RestController
 @RequestMapping("/api/v1/verifications")
@@ -29,6 +30,11 @@ class VerificationController(
         val response = verificationService.submit(SecurityUtils.currentUserId(), areaId, photo)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
+
+    @GetMapping("/today")
+    @PreAuthorize("hasRole('STUDENT')")
+    fun getToday(): ResponseEntity<TodayVerificationResponse> =
+        ResponseEntity.ok(verificationService.getToday(SecurityUtils.currentUserId()))
 
     @GetMapping("/me")
     @PreAuthorize("hasRole('STUDENT')")

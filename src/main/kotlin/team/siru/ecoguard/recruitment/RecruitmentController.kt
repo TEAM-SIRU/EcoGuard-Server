@@ -16,7 +16,6 @@ import team.siru.ecoguard.recruitment.dto.ApplicantResponse
 import team.siru.ecoguard.recruitment.dto.ApplicationStatusResponse
 import team.siru.ecoguard.recruitment.dto.ApplyRequest
 import team.siru.ecoguard.recruitment.dto.ApplyResponse
-import team.siru.ecoguard.recruitment.dto.ConfirmRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.CreateRecruitmentRequest
 import team.siru.ecoguard.recruitment.dto.CreateRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.CurrentRecruitmentResponse
@@ -56,12 +55,6 @@ class RecruitmentController(
     @PreAuthorize("hasRole('STUDENT')")
     fun getCurrentRecruitment(): ResponseEntity<CurrentRecruitmentResponse> {
         return ResponseEntity.ok(recruitmentService.getCurrentRecruitment(SecurityUtils.currentUserId()))
-    }
-
-    @PostMapping("/recruitments/{recruitmentId}/confirm")
-    @PreAuthorize("hasRole('TEACHER')")
-    fun confirmRecruitment(@PathVariable recruitmentId: Long): ResponseEntity<ConfirmRecruitmentResponse> {
-        return ResponseEntity.ok(recruitmentService.confirmRecruitment(recruitmentId))
     }
 
     @GetMapping("/recruitments/{recruitmentId}/applications")

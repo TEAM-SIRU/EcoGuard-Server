@@ -9,7 +9,6 @@ import team.siru.ecoguard.recruitment.dto.ApplicantResponse
 import team.siru.ecoguard.recruitment.dto.ApplicationStatusResponse
 import team.siru.ecoguard.recruitment.dto.ApplyRequest
 import team.siru.ecoguard.recruitment.dto.ApplyResponse
-import team.siru.ecoguard.recruitment.dto.ConfirmRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.CreateRecruitmentRequest
 import team.siru.ecoguard.recruitment.dto.CreateRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.CurrentRecruitmentResponse
@@ -97,27 +96,15 @@ class RecruitmentService(
         }
 
         val application = applicationRepository.save(
-            RecruitmentApplication(recruitment = recruitment, student = student, motivation = request.motivation),
+            RecruitmentApplication(
+                recruitment = recruitment,
+                student = student,
+                motivation = request.motivation,
+                status = ApplicationStatus.APPROVED,
+            ),
         )
         val order = applicationRepository.countByRecruitmentIdAndIdLessThanEqual(recruitmentId, application.id)
-        return ApplyResponse(application.id, application.status, order, student.studentNumber, student.name)
-    }
-
-    /**
-     * 선착순으로 모집 인원을 확정한다. 신청 순서 기준 정원 이내는 승인, 초과분은 반려한다.
-     * 확정 후 추가 신청이 들어와도 다시 호출하면 같은 기준으로 재확정된다.
-     */
-    @Transactional
-    fun confirmRecruitment(recruitmentId: Long): ConfirmRecruitmentResponse {
-        val recruitment = getRecruitmentOrThrow(recruitmentId)
-        val applications = applicationRepository.findByRecruitmentIdOrderByCreatedAtAscIdAsc(recruitmentId)
-        applications.forEachIndexed { index, application ->
-            application.status = if (index < recruitment.maxCount) ApplicationStatus.APPROVED else ApplicationStatus.REJECTED
-        }
-        return ConfirmRecruitmentResponse(
-            approvedCount = applications.count { it.status == ApplicationStatus.APPROVED },
-            rejectedCount = applications.count { it.status == ApplicationStatus.REJECTED },
-        )
+        return ApplyResponse(application.id, application.status, order, student.studentNumber, student.name, application.createdAt)
     }
 
     @Transactional(readOnly = true)
@@ -129,6 +116,7 @@ class RecruitmentService(
         return ApplicationStatusResponse(
             status = application.status,
             order = order,
+            appliedAt = application.createdAt,
             waitingForAssignment = application.status == ApplicationStatus.APPROVED && !assigned,
         )
     }
