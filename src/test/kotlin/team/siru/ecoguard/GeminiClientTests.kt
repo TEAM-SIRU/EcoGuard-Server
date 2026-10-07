@@ -85,6 +85,23 @@ class GeminiClientTests @Autowired constructor(
     }
 
     @Test
+    fun `a pass that lists only an unknown fail reason is not trusted either`() {
+        val (client, server) = newClient()
+        server.expect(requestTo(url)).andRespond(
+            withSuccess(
+                geminiBody("""{"is_passed":true,"fail_reasons":["SOMETHING_UNKNOWN"]}"""),
+                MediaType.APPLICATION_JSON,
+            ),
+        )
+
+        val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(client.evaluate(request))
+
+        assertEquals(ManualReviewReason.AI_FAILED, outcome.reason)
+        // 저장하는 사유에는 정해진 코드만 남는다.
+        assertEquals(emptyList(), outcome.failReasons)
+    }
+
+    @Test
     fun `a pass that still lists fail reasons is not trusted`() {
         val (client, server) = newClient()
         server.expect(requestTo(url)).andRespond(
