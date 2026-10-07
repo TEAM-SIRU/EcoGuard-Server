@@ -7,11 +7,6 @@ import team.siru.ecoguard.cleaningarea.CleaningArea
 import team.siru.ecoguard.cleaningarea.CleaningAreaSemester
 import team.siru.ecoguard.user.User
 
-data class Coordinates(
-    val x: Double,
-    val y: Double,
-)
-
 data class AssignedStudent(
     val studentId: Long,
     val studentNumber: String?,
@@ -29,7 +24,6 @@ data class AreaMapResponse(
     val description: String?,
     val cleanTime: String?,
     val semester: CleaningAreaSemester,
-    val coordinates: Coordinates,
     val isActive: Boolean,
     val assignedStudents: List<AssignedStudent>,
 ) {
@@ -41,7 +35,6 @@ data class AreaMapResponse(
             description = area.description,
             cleanTime = area.cleanTime,
             semester = area.semester,
-            coordinates = Coordinates(area.x, area.y),
             isActive = area.isActive,
             assignedStudents = assignments.map { AssignedStudent.from(it.student) },
         )
@@ -74,7 +67,6 @@ data class MyAssignmentResponse(
     val areaName: String,
     val description: String?,
     val cleanTime: String?,
-    val mapCoordinates: Coordinates,
     /** 같은 구역에 함께 배정된 학생 (본인 포함) */
     val members: List<AssignedStudent>,
 ) {
@@ -85,7 +77,6 @@ data class MyAssignmentResponse(
             areaName = assignment.area.name,
             description = assignment.area.description,
             cleanTime = assignment.area.cleanTime,
-            mapCoordinates = Coordinates(assignment.area.x, assignment.area.y),
             members = members.map(AssignedStudent::from),
         )
     }

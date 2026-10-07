@@ -25,12 +25,6 @@ class CleaningArea(
     var semester: CleaningAreaSemester = CleaningAreaSemester.COMMON,
 
     @Column(nullable = false)
-    var x: Double = 0.0,
-
-    @Column(nullable = false)
-    var y: Double = 0.0,
-
-    @Column(nullable = false)
     var isActive: Boolean = false,
 
     /**

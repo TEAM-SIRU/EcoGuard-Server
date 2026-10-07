@@ -83,7 +83,7 @@ file-storage:
 # model-ready 기본값은 false이며, true 인 구역만 활성화할 수 있다.
 # 지금은 Gemini 로 검수하므로 전 구역 true 이다. 자체 AI 서버(ai-review.provider=ai-server)로 전환하면
 # AI 모델 학습이 끝난 구역만 true 로 두어야 한다.
-# x, y 는 학교 도면 상 좌표로, 도면 좌표가 확정되면 채워 넣을 것.
+# 앱은 좌표 대신 zone-code 로 도면의 칸을 찾아 표시한다.
 cleaning-area-seed:
   areas:
     # ── 학기 구분 없이 18개 전체를 하나의 목록으로 관리 ──
