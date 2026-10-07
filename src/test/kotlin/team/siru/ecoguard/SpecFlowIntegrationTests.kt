@@ -200,6 +200,6 @@ class SpecFlowIntegrationTests @Autowired constructor(
         val result = mockMvc.post("/api/v1/auth/login") {
             json(objectMapper.writeValueAsString(mapOf("authCode" to authCode)))
         }.andExpect { status { isOk() } }.andReturn()
-        return objectMapper.readTree(result.response.contentAsString).get("accessToken").asText()
+        return objectMapper.readTree(result.response.contentAsString).get("accessToken").asString()
     }
 }

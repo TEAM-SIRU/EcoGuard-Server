@@ -98,7 +98,7 @@ class WeekendVerificationTests @Autowired constructor(
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(mapOf("authCode" to authCode))
         }.andExpect { status { isOk() } }.andReturn()
-        return objectMapper.readTree(result.response.contentAsString).get("accessToken").asText()
+        return objectMapper.readTree(result.response.contentAsString).get("accessToken").asString()
     }
 }
 
