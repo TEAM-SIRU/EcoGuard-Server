@@ -219,7 +219,7 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
         val withdrawn = userRepository.findById(oldUserId).get()
         assertEquals("탈퇴한 사용자", withdrawn.name)
         assertEquals("withdrawn-$oldUserId@withdrawn.invalid", withdrawn.email)
-        assertEquals(-oldUserId, withdrawn.gsmAccountId)
+        assertEquals(Long.MIN_VALUE + oldUserId, withdrawn.gsmAccountId)
         assertEquals(null, withdrawn.studentNumber)
         assertEquals(null, withdrawn.grade)
         assertEquals(null, withdrawn.classNo)

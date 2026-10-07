@@ -45,28 +45,53 @@ jobs:
         run: |
           scp -i ~/.ssh/deploy_key -P "$SSH_PORT" \
             build/libs/ecoguard-server-0.0.1-SNAPSHOT.jar \
-            "$SSH_USER@$SSH_HOST:/opt/ecoguard/app.jar"
+            "$SSH_USER@$SSH_HOST:/opt/ecoguard/app.jar.new"
 
-      - name: Restart and health check
+      - name: Swap jar, restart and health check
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'bash -s' <<'REMOTE'
-          set -e
-          sudo systemctl restart ecoguard
+          cd /opt/ecoguard
+
           # 부팅에 20~40초 걸리므로 최대 3분까지 기다린다
-          for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080/api/v1/auth/callback?code=test&state=abc" || true)
-            if [ "$code" = "302" ]; then
-              echo "OK: 서버가 정상 기동했습니다 (HTTP $code)"
-              systemctl is-active ecoguard
-              exit 0
-            fi
-            sleep 3
-          done
-          echo "FAIL: 서버가 정상 기동하지 않았습니다 (마지막 HTTP $code)"
+          wait_healthy() {
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080/api/v1/auth/callback?code=test&state=abc" || true)
+              if [ "$code" = "302" ]; then
+                return 0
+              fi
+              sleep 3
+            done
+            return 1
+          }
+
+          # 실행 중인 jar 를 직접 덮어쓰지 않고, 이전 jar 를 백업한 뒤 새 jar 로 교체(mv)한다
+          [ -f app.jar ] && cp -f app.jar app.jar.bak
+          mv -f app.jar.new app.jar
+          sudo systemctl restart ecoguard
+
+          if wait_healthy; then
+            echo "OK: 서버가 정상 기동했습니다"
+            systemctl is-active ecoguard
+            exit 0
+          fi
+
+          echo "FAIL: 서버가 정상 기동하지 않았습니다"
           journalctl -u ecoguard -n 50 --no-pager || true
+
+          # 새 버전이 뜨지 못하면 이전 jar 로 되돌려 서비스가 멈춘 채로 남지 않게 한다
+          if [ -f app.jar.bak ]; then
+            echo "이전 버전으로 롤백합니다"
+            cp -f app.jar.bak app.jar
+            sudo systemctl restart ecoguard
+            if wait_healthy; then
+              echo "ROLLBACK OK: 이전 버전으로 복구했습니다. 이번 배포는 실패입니다"
+            else
+              echo "ROLLBACK FAIL: 이전 버전도 기동하지 않습니다. 서버를 직접 확인하세요"
+            fi
+          fi
           exit 1
           REMOTE

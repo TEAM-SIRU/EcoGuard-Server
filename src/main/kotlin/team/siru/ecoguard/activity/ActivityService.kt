@@ -90,24 +90,35 @@ class ActivityService(
     @Transactional(readOnly = true)
     fun searchStudents(keyword: String?): List<StudentActivityResponse> {
         val students = if (keyword.isNullOrBlank()) {
-            userRepository.findAll()
+            userRepository.findByRole(Role.STUDENT)
         } else {
             userRepository.findByNameContainingOrStudentNumberContaining(keyword, keyword)
-        }.filter { it.role == Role.STUDENT }
+                .filter { it.role == Role.STUDENT }
+        }
         if (students.isEmpty()) {
             throw BusinessException(ErrorCode.NO_SEARCH_RESULT)
         }
+
+        // 학생마다 쿼리를 날리지 않도록 필요한 값을 학생 전체에 대해 한 번씩만 조회한다.
+        val ids = students.map { it.id }
+        val areaNameByStudent = assignmentRepository.findAllWithAreaByStudentIdIn(ids)
+            .groupBy { it.student.id }
+            .mapValues { (_, assignments) -> assignments.first().area.name }
+        val photoUrlByStudent = verificationRepository.findLatestByStudentIdIn(ids)
+            .groupBy { it.student.id }
+            .mapValues { (_, latest) -> latest.first().photoUrl }
+        val attendanceByStudent = verificationRepository.countByStudentIdInAndStatus(ids, VerificationStatus.APPROVED).toLongMap()
+        val minutesByStudent = serviceTimeLogRepository.sumMinutesByStudentIdIn(ids).toLongMap()
+
         return students.map { student ->
-            val assignment = assignmentRepository.findFirstByStudentIdOrderByCreatedAtDesc(student.id)
-            val latestVerification = verificationRepository.findByStudentIdOrderByVerificationDateDesc(student.id).firstOrNull()
             StudentActivityResponse(
                 studentId = student.id,
                 studentNumber = student.studentNumber,
                 name = student.name,
-                area = assignment?.area?.name,
-                photoUrl = latestVerification?.photoUrl,
-                attendanceDays = verificationRepository.countByStudentIdAndStatus(student.id, VerificationStatus.APPROVED),
-                totalMinutes = serviceTimeLogRepository.sumMinutesByStudentId(student.id),
+                area = areaNameByStudent[student.id],
+                photoUrl = photoUrlByStudent[student.id],
+                attendanceDays = attendanceByStudent[student.id] ?: 0L,
+                totalMinutes = minutesByStudent[student.id] ?: 0L,
             )
         }
     }
@@ -162,6 +173,10 @@ class ActivityService(
         return date.isBefore(today) ||
             (date == today && CleaningTimeWindow.hasEnded(assignment?.area?.cleanTime, now.toLocalTime()))
     }
+
+    /** `select 학생ID, 집계값 ... group by 학생ID` 결과 행을 학생ID → 집계값 맵으로 바꾼다. */
+    private fun List<Array<Any>>.toLongMap(): Map<Long, Long> =
+        associate { row -> (row[0] as Number).toLong() to (row[1] as Number).toLong() }
 
     private fun Verification.toRecord(minutes: Int) = ActivityRecord(
         date = verificationDate,

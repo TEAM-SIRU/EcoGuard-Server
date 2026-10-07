@@ -26,7 +26,8 @@ class UserService(
     /**
      * 회원 탈퇴. 개인정보(이름, 이메일, 학번, 학년/반)를 익명화하고 모든 토큰을 무효화한다.
      * 인증/이의신청/봉사 시간 기록은 학교 기록이라 그대로 남기고, 청소 구역 배정과 모집 신청은 정원을 비우기 위해 지운다.
-     * dataGSM 계정 ID 를 음수(-사용자 ID)로 바꿔 두므로, 같은 계정으로 다시 로그인하면 새 사용자로 가입된다.
+     * dataGSM 계정 ID 를 실제 계정과 겹치지 않는 값(Long.MIN_VALUE + 사용자 ID)으로 바꿔 두므로, 같은 계정으로 다시 로그인하면
+     * 새 사용자로 가입된다. 데모 계정이 쓰는 -1 과 겹치지 않도록 -사용자 ID 는 쓰지 않는다.
      */
     @Transactional
     fun withdraw(userId: Long) {
@@ -35,7 +36,7 @@ class UserService(
         assignmentRepository.deleteByStudentId(userId)
         applicationRepository.deleteByStudentId(userId)
 
-        user.gsmAccountId = -user.id
+        user.gsmAccountId = Long.MIN_VALUE + user.id
         user.email = "withdrawn-${user.id}@withdrawn.invalid"
         user.name = WITHDRAWN_NAME
         user.studentNumber = null

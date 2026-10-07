@@ -39,6 +39,8 @@ class FileStorageService(
                 val reader = readers.next()
                 try {
                     reader.input = input
+                    // 파일 크기는 작아도 해상도가 매우 큰 이미지는 디코딩 때 메모리를 크게 쓰므로, 디코딩 전에 해상도부터 막는다.
+                    if (reader.getWidth(0).toLong() * reader.getHeight(0) > MAX_PIXELS) return@use null
                     // 헤더만이 아니라 실제 디코딩이 되는 파일인지 확인한다.
                     reader.read(0)
                     reader.formatName.lowercase()
@@ -51,6 +53,9 @@ class FileStorageService(
     }
 
     companion object {
+        /** 최신 스마트폰 사진(최대 약 5천만 화소)까지 허용하고 그보다 큰 이미지는 거부한다. */
+        private const val MAX_PIXELS = 50_000_000L
+
         private val ALLOWED_EXTENSIONS = mapOf(
             "jpeg" to "jpg",
             "jpg" to "jpg",

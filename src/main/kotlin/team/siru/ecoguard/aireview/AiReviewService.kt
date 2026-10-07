@@ -4,6 +4,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import team.siru.ecoguard.activity.ServiceTimeReason
 import team.siru.ecoguard.aireview.dto.ManualDecision
 import team.siru.ecoguard.aireview.dto.ManualReviewItemResponse
@@ -22,18 +23,35 @@ class AiReviewService(
     private val verificationRepository: VerificationRepository,
     private val aiReviewRepository: AiReviewRepository,
     private val activityService: ActivityService,
+    private val transactionTemplate: TransactionTemplate,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    /**
+     * 외부 AI 호출은 수 초~수십 초가 걸리므로 트랜잭션(DB 커넥션) 밖에서 하고, 결과를 반영할 때만 짧게 트랜잭션을 연다.
+     */
     @Async
-    @Transactional
     fun processReview(verificationId: Long, request: EvaluateRequest) {
-        val verification = verificationRepository.findById(verificationId).orElse(null) ?: return
-        // 이미 수동 검토로 넘어갔거나 처리된 인증이면 건드리지 않는다.
-        if (verification.status != VerificationStatus.PROCESSING) return
+        val isProcessing = transactionTemplate.execute {
+            verificationRepository.findById(verificationId).orElse(null)?.status == VerificationStatus.PROCESSING
+        }
+        // 이미 수동 검토로 넘어갔거나 처리된 인증이면 AI 를 호출하지 않는다.
+        if (!isProcessing) return
 
-        when (val outcome = aiEvaluator.evaluate(request)) {
+        val outcome = aiEvaluator.evaluate(request)
+        transactionTemplate.executeWithoutResult { applyOutcome(verificationId, outcome) }
+    }
+
+    private fun applyOutcome(verificationId: Long, outcome: AiEvaluateOutcome) {
+        // AI 호출 중에 시간 초과 복구나 교사 처리로 상태가 바뀌었을 수 있으므로, 잠근 뒤 다시 확인한다.
+        val verification = verificationRepository.findWithLockById(verificationId) ?: return
+        if (verification.status != VerificationStatus.PROCESSING) {
+            log.info("AI 검수 결과를 버렸습니다. 이미 처리된 인증입니다 (id={}, status={})", verificationId, verification.status)
+            return
+        }
+
+        when (outcome) {
             is AiEvaluateOutcome.Success -> {
                 val response = outcome.response
                 aiReviewRepository.save(
@@ -79,8 +97,9 @@ class AiReviewService(
 
     @Transactional
     fun decide(verificationId: Long, decision: ManualDecision) {
-        val verification = verificationRepository.findById(verificationId)
-            .orElseThrow { BusinessException(ErrorCode.REVIEW_NOT_FOUND) }
+        // 교사 두 명이 동시에 승인해도 봉사시간이 두 번 적립되지 않도록 잠근 뒤 상태를 확인한다.
+        val verification = verificationRepository.findWithLockById(verificationId)
+            ?: throw BusinessException(ErrorCode.REVIEW_NOT_FOUND)
         if (verification.status != VerificationStatus.MANUAL_REVIEW) {
             throw BusinessException(ErrorCode.NOT_MANUAL_REVIEW)
         }
