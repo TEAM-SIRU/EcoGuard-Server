@@ -54,7 +54,8 @@ class AppealService(
 
         val photoUrls = photos.map { photo ->
             val bytes = runCatching { photo.bytes }.getOrElse { throw BusinessException(ErrorCode.INVALID_IMAGE) }
-            fileStorageService.storeImage(bytes, photo.originalFilename, "appeals")
+            // 뒤의 사진이 잘못됐거나 저장이 실패해 롤백되면, 이미 저장한 사진도 같이 지운다.
+            fileStorageService.storeImage(bytes, photo.originalFilename, "appeals").also(fileStorageService::deleteOnRollback)
         }
 
         val round = appealRepository.countByVerificationId(verificationId).toInt() + 1

@@ -15,11 +15,17 @@ sealed interface AiEvaluateOutcome {
     /** [rawResponse]는 AI 서버가 보낸 응답 원문(JSON)으로, AI_REVIEW.raw_response에 그대로 저장한다. */
     data class Success(val response: AiEvaluateResponse, val rawResponse: String) : AiEvaluateOutcome
 
-    /** AI 가 판정은 했지만 자동 반려하지 않는 경우, [rawResponse] 와 [failReasons] 를 함께 남겨 교사가 참고하게 한다. */
+    /**
+     * 자동 승인하지 않고 교사 검토로 보내는 경우. AI 가 응답을 줬다면 [rawResponse] 와 [failReasons] 를 함께 남겨 교사와 개발자가 참고하게 한다.
+     * [decision], [isPassed] 는 **AI 가 실제로 말한 판정**(서버가 내린 최종 처리가 아님)이고, AI 가 판정을 주지 않았으면 null 이다.
+     * 서버의 최종 처리(수동 검토로 보낸 이유)는 인증의 `manualReviewReason` 에 따로 남는다.
+     */
     data class NeedsManualReview(
         val reason: ManualReviewReason,
         val rawResponse: String? = null,
         val failReasons: List<String> = emptyList(),
+        val decision: String? = null,
+        val isPassed: Boolean? = null,
     ) : AiEvaluateOutcome
 }
 

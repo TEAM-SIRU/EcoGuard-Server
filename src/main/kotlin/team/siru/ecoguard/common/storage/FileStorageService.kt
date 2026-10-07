@@ -1,9 +1,13 @@
 package team.siru.ecoguard.common.storage
 
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import java.io.ByteArrayInputStream
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -13,6 +17,8 @@ import javax.imageio.ImageIO
 class FileStorageService(
     private val properties: FileStorageProperties,
 ) {
+
+    private val log = LoggerFactory.getLogger(javaClass)
 
     fun storeImage(bytes: ByteArray, originalFilename: String?, subDirectory: String): String {
         if (bytes.isEmpty()) {
@@ -29,6 +35,35 @@ class FileStorageService(
         Files.write(directory.resolve(fileName), bytes)
 
         return "${properties.publicUrlPrefix}/$subDirectory/$fileName"
+    }
+
+    /**
+     * [storeImage] 로 저장한 사진을, 호출한 트랜잭션이 **롤백되면** 지운다. 사진은 DB 저장보다 먼저 파일로 쓰기 때문에,
+     * 이후 단계(사용자 조회, DB 저장, 동시 제출 충돌 등)가 실패하면 어디에서도 참조하지 않는 파일이 남기 때문이다.
+     * 커밋되면 그대로 두고, 커밋 결과를 알 수 없을 때(STATUS_UNKNOWN)도 참조될 수 있으므로 지우지 않는다.
+     * 활성 트랜잭션이 없으면 아무것도 하지 않는다.
+     */
+    fun deleteOnRollback(url: String) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCompletion(status: Int) {
+                if (status == TransactionSynchronization.STATUS_ROLLED_BACK) delete(url)
+            }
+        })
+    }
+
+    /** [storeImage] 가 돌려준 URL 의 파일을 지운다. 저장 폴더 밖을 가리키거나 이미 없으면 무시한다. */
+    fun delete(url: String) {
+        val prefix = "${properties.publicUrlPrefix}/"
+        if (!url.startsWith(prefix)) return
+        val base = Path.of(properties.basePath).toAbsolutePath().normalize()
+        val target = base.resolve(url.removePrefix(prefix)).normalize()
+        if (!target.startsWith(base)) return
+        try {
+            Files.deleteIfExists(target)
+        } catch (e: IOException) {
+            log.warn("사진 파일을 지우지 못했습니다: {}", target.fileName, e)
+        }
     }
 
     private fun detectExtension(bytes: ByteArray): String? {

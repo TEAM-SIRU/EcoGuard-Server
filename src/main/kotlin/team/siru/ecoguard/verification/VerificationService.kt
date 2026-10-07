@@ -77,6 +77,8 @@ class VerificationService(
 
         val imageBytes = runCatching { photo.bytes }.getOrElse { throw BusinessException(ErrorCode.INVALID_IMAGE) }
         val photoUrl = fileStorageService.storeImage(imageBytes, photo.originalFilename, "verifications")
+        // 이후 단계가 실패해 롤백되면(동시 제출 충돌 등) 이 사진을 가리키는 인증이 없으므로 같이 지운다.
+        fileStorageService.deleteOnRollback(photoUrl)
 
         val student = userRepository.findById(studentId).orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
 

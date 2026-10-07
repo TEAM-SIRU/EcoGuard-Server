@@ -114,6 +114,41 @@ class GeminiClientTests @Autowired constructor(
         val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(client.evaluate(request))
 
         assertEquals(ManualReviewReason.AI_FAILED, outcome.reason)
+        // AI 가 실제로 말한 판정(통과)을 남기고, 서버가 수동 검토로 보낸 이유는 reason 으로 따로 둔다.
+        assertEquals("PASS", outcome.decision)
+        assertEquals(true, outcome.isPassed)
+        assertTrue(outcome.rawResponse!!.contains("candidates"))
+    }
+
+    @Test
+    fun `an unreadable verdict keeps the raw response and no verdict`() {
+        val (client, server) = newClient()
+        server.expect(requestTo(url))
+            .andRespond(withSuccess(geminiBody("""{"reason":"no verdict field"}"""), MediaType.APPLICATION_JSON))
+
+        val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(client.evaluate(request))
+
+        assertEquals(ManualReviewReason.AI_ERROR, outcome.reason)
+        assertTrue(outcome.rawResponse!!.contains("no verdict field"), "분석할 수 있게 원문을 남긴다")
+        assertEquals(null, outcome.decision)
+        assertEquals(null, outcome.isPassed)
+    }
+
+    @Test
+    fun `an error body from Gemini is kept but cut to a bounded length`() {
+        val (client, server) = newClient()
+        val body = """{"error":"quota exceeded"}""" + "x".repeat(5000)
+        repeat(2) {
+            server.expect(requestTo(url)).andRespond(
+                withStatus(HttpStatus.TOO_MANY_REQUESTS).body(body).contentType(MediaType.APPLICATION_JSON),
+            )
+        }
+
+        val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(client.evaluate(request))
+
+        assertEquals(ManualReviewReason.RATE_LIMITED, outcome.reason)
+        assertTrue(outcome.rawResponse!!.startsWith("""{"error":"quota exceeded"}"""))
+        assertEquals(2000, outcome.rawResponse.length)
     }
 
     @Test

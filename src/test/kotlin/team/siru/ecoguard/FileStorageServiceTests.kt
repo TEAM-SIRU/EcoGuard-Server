@@ -1,15 +1,19 @@
 package team.siru.ecoguard
 
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.storage.FileStorageProperties
 import team.siru.ecoguard.common.storage.FileStorageService
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
+import java.nio.file.Files
 import java.nio.file.Path
 import javax.imageio.ImageIO
 
@@ -51,6 +55,76 @@ class FileStorageServiceTests {
             service().storeImage(out.toByteArray(), "huge.png", "verifications")
         }
         assertTrue(ex.errorCode == ErrorCode.INVALID_IMAGE)
+    }
+
+    private fun fileOf(url: String): Path = tempDir.resolve(url.removePrefix("/files/"))
+
+    /** 트랜잭션 안에서 [block] 을 실행한 뒤, 그 트랜잭션이 [status] 로 끝난 것처럼 완료 콜백을 부른다. */
+    private fun inTransactionEndingWith(status: Int, block: () -> Unit) {
+        TransactionSynchronizationManager.initSynchronization()
+        try {
+            block()
+            TransactionSynchronizationManager.getSynchronizations().forEach { it.afterCompletion(status) }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization()
+        }
+    }
+
+    @Test
+    fun `delete removes the stored file and tolerates a missing one`() {
+        val url = service().storeImage(imageBytes("png"), "a.png", "verifications")
+        assertTrue(Files.exists(fileOf(url)))
+
+        service().delete(url)
+        service().delete(url)
+
+        assertFalse(Files.exists(fileOf(url)))
+    }
+
+    @Test
+    fun `delete never touches files outside the storage folder`() {
+        val outside = Files.createFile(tempDir.resolve("secret.txt"))
+        val storage = FileStorageService(FileStorageProperties(basePath = tempDir.resolve("store").toString()))
+
+        storage.delete("/files/../secret.txt")
+        storage.delete("/etc/passwd")
+
+        assertTrue(Files.exists(outside))
+    }
+
+    @Test
+    fun `a rolled back transaction deletes the photo saved in it`() {
+        lateinit var url: String
+
+        inTransactionEndingWith(TransactionSynchronization.STATUS_ROLLED_BACK) {
+            url = service().storeImage(imageBytes("jpg"), "a.jpg", "verifications")
+            service().deleteOnRollback(url)
+        }
+
+        assertFalse(Files.exists(fileOf(url)))
+    }
+
+    @Test
+    fun `a committed or unknown transaction keeps the photo`() {
+        for (status in listOf(TransactionSynchronization.STATUS_COMMITTED, TransactionSynchronization.STATUS_UNKNOWN)) {
+            lateinit var url: String
+
+            inTransactionEndingWith(status) {
+                url = service().storeImage(imageBytes("jpg"), "a.jpg", "verifications")
+                service().deleteOnRollback(url)
+            }
+
+            assertTrue(Files.exists(fileOf(url)), "status=$status 에서는 사진을 남겨야 한다")
+        }
+    }
+
+    @Test
+    fun `deleteOnRollback outside a transaction does nothing`() {
+        val url = service().storeImage(imageBytes("png"), "a.png", "verifications")
+
+        service().deleteOnRollback(url)
+
+        assertTrue(Files.exists(fileOf(url)))
     }
 
     @Test

@@ -13,6 +13,7 @@ import team.siru.ecoguard.activity.ActivityService
 import team.siru.ecoguard.aireview.AiEvaluateOutcome
 import team.siru.ecoguard.aireview.AiEvaluateResponse
 import team.siru.ecoguard.aireview.AiEvaluator
+import team.siru.ecoguard.aireview.AiReview
 import team.siru.ecoguard.aireview.AiReviewRepository
 import team.siru.ecoguard.aireview.AiReviewService
 import team.siru.ecoguard.aireview.EvaluateRequest
@@ -123,6 +124,56 @@ class AiReviewServiceTests {
         assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
         assertEquals(ManualReviewReason.AI_FAILED.name, verification.manualReviewReason)
         assertEquals(0, accumulateCalls())
+    }
+
+    private fun savedReviews() = Mockito.mockingDetails(aiReviewRepository).invocations
+        .filter { it.method.name == "save" }
+        .map { it.arguments[0] as AiReview }
+
+    @Test
+    fun `manual review keeps the verdict the AI actually gave instead of a fixed FAIL`() {
+        val verification = newVerification()
+        // AI 는 통과라고 했지만 사유가 함께 와서 서버가 수동 검토로 보낸 경우
+        val outcome = AiEvaluateOutcome.NeedsManualReview(
+            ManualReviewReason.AI_FAILED,
+            rawResponse = """{"is_passed":true}""",
+            failReasons = listOf("TRASH_OUTSIDE_DUSTPAN"),
+            decision = "PASS",
+            isPassed = true,
+        )
+
+        service(outcome).processReview(verification.id, request)
+
+        val saved = savedReviews().single()
+        assertEquals("PASS", saved.decision)
+        assertEquals(true, saved.isPassed)
+        assertEquals("""{"is_passed":true}""", saved.rawResponse)
+        // 서버의 최종 처리와 이유는 인증 쪽에 따로 남는다.
+        assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
+        assertEquals(ManualReviewReason.AI_FAILED.name, verification.manualReviewReason)
+    }
+
+    @Test
+    fun `an unreadable response is stored with its raw text and no verdict`() {
+        val verification = newVerification()
+
+        service(AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.AI_ERROR, rawResponse = "not json")).processReview(verification.id, request)
+
+        val saved = savedReviews().single()
+        assertEquals("not json", saved.rawResponse)
+        assertEquals(null, saved.decision)
+        assertEquals(null, saved.isPassed)
+        assertEquals(ManualReviewReason.AI_ERROR.name, verification.manualReviewReason)
+    }
+
+    @Test
+    fun `no AI review row is stored when the AI gave no response at all`() {
+        val verification = newVerification()
+
+        service(AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.TIMEOUT)).processReview(verification.id, request)
+
+        assertEquals(0, savedReviews().size)
+        assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
     }
 
     @Test
