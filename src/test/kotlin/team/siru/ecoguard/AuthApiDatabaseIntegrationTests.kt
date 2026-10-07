@@ -105,7 +105,7 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
                     content = objectMapper.writeValueAsString(mapOf("authCode" to "STUDENT|9004|s4@test.local|Student|1101|1|1"))
                 }.andReturn().response.contentAsString,
             )
-            return body.get("accessToken").asText() to body.get("refreshToken").asText()
+            return body.get("accessToken").asString() to body.get("refreshToken").asString()
         }
         val (accessToken, refreshToken) = loginTokens()
         mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $accessToken") }
@@ -135,8 +135,8 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
                 content = objectMapper.writeValueAsString(mapOf("authCode" to "TEACHER|9003|t3@test.local|Teacher|||"))
             }.andReturn().response.contentAsString,
         )
-        val accessToken = loginBody.get("accessToken").asText()
-        val refreshToken = loginBody.get("refreshToken").asText()
+        val accessToken = loginBody.get("accessToken").asString()
+        val refreshToken = loginBody.get("refreshToken").asString()
 
         val refreshed = mockMvc.post("/api/v1/auth/refresh") {
             contentType = MediaType.APPLICATION_JSON
@@ -146,7 +146,7 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
             jsonPath("$.accessToken") { exists() }
             jsonPath("$.refreshToken") { exists() }
         }.andReturn()
-        val newAccessToken = objectMapper.readTree(refreshed.response.contentAsString).get("accessToken").asText()
+        val newAccessToken = objectMapper.readTree(refreshed.response.contentAsString).get("accessToken").asString()
         mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $newAccessToken") }
             .andExpect { status { isOk() } }
 
@@ -180,8 +180,8 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
                 content = objectMapper.writeValueAsString(mapOf("authCode" to "STUDENT|9005|s5@test.local|Student|1101|1|1"))
             }.andReturn().response.contentAsString,
         )
-        val accessToken = loginBody.get("accessToken").asText()
-        val refreshToken = loginBody.get("refreshToken").asText()
+        val accessToken = loginBody.get("accessToken").asString()
+        val refreshToken = loginBody.get("refreshToken").asString()
 
         // 토큰 없음 / 잘못된 토큰
         for (header in listOf(null, "Bearer garbage")) {
@@ -209,8 +209,8 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
                 content = objectMapper.writeValueAsString(mapOf("authCode" to authCode))
             }.andReturn().response.contentAsString,
         )
-        val accessToken = loginBody.get("accessToken").asText()
-        val refreshToken = loginBody.get("refreshToken").asText()
+        val accessToken = loginBody.get("accessToken").asString()
+        val refreshToken = loginBody.get("refreshToken").asString()
         val oldUserId = userRepository.findByGsmAccountId(9006)!!.id
 
         mockMvc.delete("/api/v1/users/me") { header("Authorization", "Bearer $accessToken") }
@@ -282,6 +282,6 @@ class AuthApiDatabaseIntegrationTests @Autowired constructor(
             jsonPath("$.accessToken") { exists() }
             jsonPath("$.refreshToken") { exists() }
         }.andReturn()
-        return objectMapper.readTree(result.response.contentAsString).get("accessToken").asText()
+        return objectMapper.readTree(result.response.contentAsString).get("accessToken").asString()
     }
 }

@@ -59,8 +59,8 @@ class DemoAccountLoginTests @Autowired constructor(
         val body = objectMapper.readTree(
             login("demo-review-code-1234567890").andReturn().response.contentAsString,
         )
-        assertEquals("STUDENT", body.get("user").get("role").asText())
-        val token = body.get("accessToken").asText()
+        assertEquals("STUDENT", body.get("user").get("role").asString())
+        val token = body.get("accessToken").asString()
 
         mockMvc.get("/api/v1/notices") { header("Authorization", "Bearer $token") }
             .andExpect { status { isOk() } }

@@ -225,7 +225,7 @@ class ClientFeedbackApiTests @Autowired constructor(
             mockMvc.get("/api/v1/appeals/me") { header("Authorization", "Bearer $token") }
                 .andReturn().response.contentAsString,
         ).associateBy { it.get("appealId").asLong() }
-        assertEquals("APPROVED", mine.getValue(alreadyApprovedAppeal).get("status").asText())
+        assertEquals("APPROVED", mine.getValue(alreadyApprovedAppeal).get("status").asString())
         assertEquals(true, mine.getValue(alreadyApprovedAppeal).get("awardedMinutes")?.isNull ?: true)
         assertEquals(10, mine.getValue(normalAppeal).get("awardedMinutes").asInt())
     }
@@ -357,7 +357,7 @@ class ClientFeedbackApiTests @Autowired constructor(
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(mapOf("authCode" to authCode))
         }.andExpect { status { isOk() } }.andReturn()
-        return objectMapper.readTree(result.response.contentAsString).get("accessToken").asText()
+        return objectMapper.readTree(result.response.contentAsString).get("accessToken").asString()
     }
 
     private fun pngBytes(): ByteArray {
