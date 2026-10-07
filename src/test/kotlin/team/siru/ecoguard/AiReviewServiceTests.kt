@@ -16,14 +16,18 @@ import team.siru.ecoguard.aireview.AiEvaluator
 import team.siru.ecoguard.aireview.AiReview
 import team.siru.ecoguard.aireview.AiReviewRepository
 import team.siru.ecoguard.aireview.AiReviewService
+import team.siru.ecoguard.aireview.AiReviewQueueProperties
 import team.siru.ecoguard.aireview.EvaluateRequest
+import team.siru.ecoguard.aireview.ReviewJob
 import team.siru.ecoguard.aireview.ManualReviewReason
 import team.siru.ecoguard.cleaningarea.CleaningArea
+import team.siru.ecoguard.common.storage.FileStorageService
 import team.siru.ecoguard.user.Role
 import team.siru.ecoguard.user.User
 import team.siru.ecoguard.verification.Verification
 import team.siru.ecoguard.verification.VerificationRepository
 import team.siru.ecoguard.verification.VerificationStatus
+import java.time.Instant
 import java.time.LocalDate
 import java.util.Optional
 
@@ -43,7 +47,14 @@ class AiReviewServiceTests {
         override fun rollback(status: TransactionStatus) {}
     }
 
-    private val request = EvaluateRequest(ByteArray(8), "zone_A", "Hall", null, null)
+    private val clock = MutableClock(Instant.parse("2026-10-07T07:30:00Z"))
+    private val photoUrl = "/files/verifications/a.jpg"
+    private val job = ReviewJob(photoUrl, "zone_A", "Hall", null, null, queuedAt = clock.instant())
+
+    /** 대기열 차례가 오면 파일에서 읽는 사진. 기본으로는 읽을 수 있다. */
+    private val fileStorageService = Mockito.mock(FileStorageService::class.java).also {
+        Mockito.`when`(it.read(photoUrl)).thenReturn(ByteArray(8))
+    }
 
     private fun newVerification(status: VerificationStatus = VerificationStatus.PROCESSING): Verification {
         val student = User(gsmAccountId = 1, email = "s@test.local", name = "Student", role = Role.STUDENT)
@@ -73,7 +84,10 @@ class AiReviewServiceTests {
             verificationRepository,
             aiReviewRepository,
             activityService,
+            fileStorageService,
             TransactionTemplate(noOpTransactionManager),
+            AiReviewQueueProperties(maxWaitSeconds = 300),
+            clock,
         )
     }
 
@@ -86,7 +100,7 @@ class AiReviewServiceTests {
     fun `a clear pass is approved and earns minutes`() {
         val verification = newVerification()
 
-        service(success(isPassed = true, failReasons = emptyList())).processReview(verification.id, request)
+        service(success(isPassed = true, failReasons = emptyList())).processReview(verification.id, job)
 
         assertEquals(VerificationStatus.APPROVED, verification.status)
         assertEquals(1, accumulateCalls())
@@ -96,7 +110,7 @@ class AiReviewServiceTests {
     fun `a failed verdict goes to manual review instead of being rejected`() {
         val verification = newVerification()
 
-        service(success(isPassed = false, failReasons = listOf("DUSTPAN_NOT_FOUND"))).processReview(verification.id, request)
+        service(success(isPassed = false, failReasons = listOf("DUSTPAN_NOT_FOUND"))).processReview(verification.id, job)
 
         assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
         assertEquals(ManualReviewReason.AI_FAILED.name, verification.manualReviewReason)
@@ -108,7 +122,7 @@ class AiReviewServiceTests {
     fun `a response without a verdict goes to manual review`() {
         val verification = newVerification()
 
-        service(success(isPassed = null)).processReview(verification.id, request)
+        service(success(isPassed = null)).processReview(verification.id, job)
 
         assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
         assertEquals(ManualReviewReason.AI_ERROR.name, verification.manualReviewReason)
@@ -119,7 +133,7 @@ class AiReviewServiceTests {
     fun `a pass that still lists fail reasons is not approved`() {
         val verification = newVerification()
 
-        service(success(isPassed = true, failReasons = listOf("TRASH_OUTSIDE_DUSTPAN"))).processReview(verification.id, request)
+        service(success(isPassed = true, failReasons = listOf("TRASH_OUTSIDE_DUSTPAN"))).processReview(verification.id, job)
 
         assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
         assertEquals(ManualReviewReason.AI_FAILED.name, verification.manualReviewReason)
@@ -142,7 +156,7 @@ class AiReviewServiceTests {
             isPassed = true,
         )
 
-        service(outcome).processReview(verification.id, request)
+        service(outcome).processReview(verification.id, job)
 
         val saved = savedReviews().single()
         assertEquals("PASS", saved.decision)
@@ -157,7 +171,7 @@ class AiReviewServiceTests {
     fun `an unreadable response is stored with its raw text and no verdict`() {
         val verification = newVerification()
 
-        service(AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.AI_ERROR, rawResponse = "not json")).processReview(verification.id, request)
+        service(AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.AI_ERROR, rawResponse = "not json")).processReview(verification.id, job)
 
         val saved = savedReviews().single()
         assertEquals("not json", saved.rawResponse)
@@ -170,10 +184,79 @@ class AiReviewServiceTests {
     fun `no AI review row is stored when the AI gave no response at all`() {
         val verification = newVerification()
 
-        service(AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.TIMEOUT)).processReview(verification.id, request)
+        service(AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.TIMEOUT)).processReview(verification.id, job)
 
         assertEquals(0, savedReviews().size)
         assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
+    }
+
+    @Test
+    fun `the photo is read from the file only when the job gets its turn`() {
+        val verification = newVerification()
+        var received: EvaluateRequest? = null
+        val evaluator = object : AiEvaluator {
+            override fun evaluate(request: EvaluateRequest): AiEvaluateOutcome {
+                received = request
+                return success(isPassed = true, failReasons = emptyList())
+            }
+        }
+        val service = AiReviewService(
+            evaluator, verificationRepository, aiReviewRepository, activityService, fileStorageService,
+            TransactionTemplate(noOpTransactionManager), AiReviewQueueProperties(), clock,
+        )
+
+        service.processReview(verification.id, job)
+
+        assertEquals(8, received!!.imageBytes.size)
+        assertEquals("zone_A", received.zoneId)
+        assertEquals(job.queuedAt, received.queuedAt)
+    }
+
+    @Test
+    fun `a job that waited longer than the limit goes to manual review without calling the AI`() {
+        val verification = newVerification()
+        val calls = IntArray(1)
+        val oldJob = job.copy(queuedAt = clock.instant().minusSeconds(301))
+
+        service(success(isPassed = true, failReasons = emptyList()), calls).processReview(verification.id, oldJob)
+
+        assertEquals(0, calls[0])
+        assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
+        assertEquals(ManualReviewReason.TIMEOUT.name, verification.manualReviewReason)
+        assertEquals(0, accumulateCalls())
+    }
+
+    @Test
+    fun `an unreadable photo goes to manual review as an AI error`() {
+        val verification = newVerification()
+        val calls = IntArray(1)
+        Mockito.`when`(fileStorageService.read(photoUrl)).thenThrow(java.io.UncheckedIOException("gone", java.io.IOException("no such file")))
+
+        service(success(isPassed = true, failReasons = emptyList()), calls).processReview(verification.id, job)
+
+        assertEquals(0, calls[0])
+        assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
+        assertEquals(ManualReviewReason.AI_ERROR.name, verification.manualReviewReason)
+    }
+
+    @Test
+    fun `a full queue sends the verification to manual review`() {
+        val verification = newVerification()
+
+        service(success(isPassed = true, failReasons = emptyList())).sendToManualReview(verification.id, ManualReviewReason.QUEUE_FULL)
+
+        assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)
+        assertEquals(ManualReviewReason.QUEUE_FULL.name, verification.manualReviewReason)
+        assertEquals(0, accumulateCalls())
+    }
+
+    @Test
+    fun `sending to manual review never overwrites a verification that was already handled`() {
+        val verification = newVerification(status = VerificationStatus.APPROVED)
+
+        service(success(isPassed = true)).sendToManualReview(verification.id, ManualReviewReason.QUEUE_FULL)
+
+        assertEquals(VerificationStatus.APPROVED, verification.status)
     }
 
     @Test
@@ -181,7 +264,7 @@ class AiReviewServiceTests {
         val verification = newVerification(status = VerificationStatus.MANUAL_REVIEW)
         val calls = IntArray(1)
 
-        service(success(isPassed = true, failReasons = emptyList()), calls).processReview(verification.id, request)
+        service(success(isPassed = true, failReasons = emptyList()), calls).processReview(verification.id, job)
 
         assertEquals(0, calls[0], "이미 처리된 인증은 AI 를 호출하지 않는다")
         assertEquals(VerificationStatus.MANUAL_REVIEW, verification.status)

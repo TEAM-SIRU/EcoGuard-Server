@@ -3,6 +3,7 @@ package team.siru.ecoguard.aireview
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import team.siru.ecoguard.activity.ServiceTimeReason
@@ -12,8 +13,11 @@ import team.siru.ecoguard.aireview.dto.ReviewResultResponse
 import team.siru.ecoguard.activity.ActivityService
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
+import team.siru.ecoguard.common.storage.FileStorageService
 import team.siru.ecoguard.verification.VerificationRepository
 import team.siru.ecoguard.verification.VerificationStatus
+import java.time.Clock
+import java.time.Duration
 
 private const val VERIFICATION_MINUTES = 10
 
@@ -23,24 +27,69 @@ class AiReviewService(
     private val verificationRepository: VerificationRepository,
     private val aiReviewRepository: AiReviewRepository,
     private val activityService: ActivityService,
+    private val fileStorageService: FileStorageService,
     private val transactionTemplate: TransactionTemplate,
+    private val queueProperties: AiReviewQueueProperties,
+    private val clock: Clock,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     /**
+     * 전용 작업 실행기([AI_REVIEW_EXECUTOR])의 대기열에서 차례를 기다렸다가 실행된다. 대기열이 가득 차면 호출 단계에서
+     * 거부되며, 그 처리는 호출한 쪽에서 [sendToManualReview] 로 한다.
+     *
      * 외부 AI 호출은 수 초~수십 초가 걸리므로 트랜잭션(DB 커넥션) 밖에서 하고, 결과를 반영할 때만 짧게 트랜잭션을 연다.
      */
-    @Async
-    fun processReview(verificationId: Long, request: EvaluateRequest) {
+    @Async(AI_REVIEW_EXECUTOR)
+    fun processReview(verificationId: Long, job: ReviewJob) {
         val isProcessing = transactionTemplate.execute {
             verificationRepository.findById(verificationId).orElse(null)?.status == VerificationStatus.PROCESSING
         }
         // 이미 수동 검토로 넘어갔거나 처리된 인증이면 AI 를 호출하지 않는다.
         if (!isProcessing) return
 
-        val outcome = aiEvaluator.evaluate(request)
+        // 대기열에서 너무 오래 기다렸으면 AI 를 부르지 않고 바로 교사에게 넘긴다. (학생이 결과를 하염없이 기다리지 않게 한다.)
+        val waited = Duration.between(job.queuedAt, clock.instant())
+        if (waited > Duration.ofSeconds(queueProperties.maxWaitSeconds)) {
+            log.warn("AI 검수 대기 시간이 상한을 넘어 수동 검토로 보냅니다 (id={}, 대기 {}초)", verificationId, waited.seconds)
+            transactionTemplate.executeWithoutResult {
+                applyOutcome(verificationId, AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.TIMEOUT))
+            }
+            return
+        }
+
+        // 사진은 대기열에 바이트로 쌓아 두지 않고, 차례가 왔을 때 파일에서 읽는다.
+        val imageBytes = try {
+            fileStorageService.read(job.photoUrl)
+        } catch (e: Exception) {
+            log.error("검수할 사진을 읽지 못해 수동 검토로 보냅니다 (id={})", verificationId, e)
+            transactionTemplate.executeWithoutResult {
+                applyOutcome(verificationId, AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.AI_ERROR))
+            }
+            return
+        }
+
+        val outcome = aiEvaluator.evaluate(
+            EvaluateRequest(
+                imageBytes = imageBytes,
+                zoneId = job.zoneId,
+                zoneName = job.zoneName,
+                zoneDescription = job.zoneDescription,
+                userId = job.userId,
+                queuedAt = job.queuedAt,
+            ),
+        )
         transactionTemplate.executeWithoutResult { applyOutcome(verificationId, outcome) }
+    }
+
+    /**
+     * AI 검수를 거치지 않고 인증을 교사 수동 검토로 보낸다. 대기열이 가득 찼을 때처럼 제출을 받은 직후 호출한다.
+     * 제출 트랜잭션의 커밋 직후(afterCommit)에 불리므로, 그 트랜잭션에 얹히지 않도록 새 트랜잭션에서 실행한다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    fun sendToManualReview(verificationId: Long, reason: ManualReviewReason) {
+        applyOutcome(verificationId, AiEvaluateOutcome.NeedsManualReview(reason))
     }
 
     private fun applyOutcome(verificationId: Long, outcome: AiEvaluateOutcome) {

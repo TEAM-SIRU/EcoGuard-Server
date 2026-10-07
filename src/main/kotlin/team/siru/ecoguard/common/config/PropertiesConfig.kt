@@ -2,6 +2,7 @@ package team.siru.ecoguard.common.config
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration
+import team.siru.ecoguard.aireview.AiReviewQueueProperties
 import team.siru.ecoguard.aireview.AiServerProperties
 import team.siru.ecoguard.aireview.GeminiProperties
 import team.siru.ecoguard.auth.DemoAccountProperties
@@ -19,6 +20,7 @@ import team.siru.ecoguard.verification.VerificationProperties
     GsmOAuthProperties::class,
     AiServerProperties::class,
     GeminiProperties::class,
+    AiReviewQueueProperties::class,
     DemoAccountProperties::class,
     CleaningAreaSeedProperties::class,
     NeisProperties::class,

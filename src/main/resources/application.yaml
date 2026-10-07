@@ -53,13 +53,27 @@ cors:
 # ai-server: 자체 AI 서버로 검수한다 (AI 모델이 준비되면 전환).
 ai-review:
   provider: ${AI_REVIEW_PROVIDER:gemini}
+  # 제출이 한꺼번에 몰려도 AI 호출은 workers 개씩만 처리하고 나머지는 대기열에서 차례를 기다린다.
+  # 대기열이 가득 차면(capacity) 수동 검토(QUEUE_FULL)로, 제출 후 max-wait-seconds 를 넘기면 수동 검토(TIMEOUT)로 보낸다.
+  queue:
+    workers: ${AI_REVIEW_WORKERS:2}
+    capacity: ${AI_REVIEW_QUEUE_CAPACITY:200}
+    max-wait-seconds: ${AI_REVIEW_MAX_WAIT_SECONDS:300}
 
 # 무료 요금제는 분당 호출 수가 적어 동시 호출을 제한한다. 키가 비어 있으면 모든 인증이 교사 수동 검토로 넘어간다.
 gemini:
   api-key: ${GEMINI_API_KEY:}
   model: ${GEMINI_MODEL:gemini-2.5-flash-lite}
+  # 우선순위 순서의 모델 목록(쉼표 구분, `이름` 또는 `이름:분당요청한도`). 비어 있으면 위의 model 하나만 쓴다.
+  # 예) GEMINI_MODELS=gemini-2.5-flash-lite:15,gemini-2.5-flash:10  — 한 모델이 429 이거나 한도에 닿으면 다음 모델로 넘어간다.
+  models: ${GEMINI_MODELS:}
+  # models 항목에 한도를 쓰지 않았을 때의 모델당 분당 요청 한도. 0 이면 한도를 두지 않고 429 응답으로만 조절한다.
+  rpm-limit: ${GEMINI_RPM_LIMIT:0}
   timeout-millis: 15000
   max-concurrency: 2
+  rate-limit-cooldown-seconds: 60   # 429 를 낸 모델을 선택에서 제외하는 시간(응답에 Retry-After 가 있으면 그 값)
+  unavailable-cooldown-seconds: 10  # 503/5xx/시간 초과가 난 모델을 제외하는 시간
+  max-attempts: 3                   # 한 건의 검수에서 Gemini 를 호출해 보는 최대 횟수
 
 # 방학 기간에는 청소 인증을 막는다. NEIS 학사일정의 방학식~개학 사이를 방학으로 본다.
 # 키나 학교 코드가 비어 있으면 방학 제한을 적용하지 않는다.
