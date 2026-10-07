@@ -17,8 +17,6 @@ data class GeminiProperties(
     val rpmLimit: Int = 0,
     val baseUrl: String = "https://generativelanguage.googleapis.com",
     val timeoutMillis: Long = 15000,
-    /** 동시에 Gemini 로 보내는 요청 수 상한. */
-    val maxConcurrency: Int = 2,
     /** 429 를 받은 모델을 선택 대상에서 제외하는 시간(초). 응답에 `Retry-After` 가 있으면 그 값을 쓴다. */
     val rateLimitCooldownSeconds: Long = 60,
     /** 503, 5xx, 시간 초과가 난 모델을 선택 대상에서 제외하는 시간(초). */

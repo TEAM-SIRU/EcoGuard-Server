@@ -1,6 +1,7 @@
 package team.siru.ecoguard.verification
 
 import jakarta.persistence.LockModeType
+import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
@@ -34,6 +35,8 @@ interface VerificationRepository : JpaRepository<Verification, Long> {
     fun findByStudentIdAndIdempotencyKey(studentId: Long, idempotencyKey: String): Verification?
     fun findByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Verification?
     fun findByStudentIdOrderByVerificationDateDesc(studentId: Long): List<Verification>
+    /** 수동 검토 목록은 학생·구역 이름을 보여 주므로 한 번에 가져온다. */
+    @EntityGraph(attributePaths = ["student", "area"])
     fun findByStatusOrderByCreatedAtAsc(status: VerificationStatus): List<Verification>
     fun findByStatusAndCreatedAtBefore(status: VerificationStatus, createdAt: LocalDateTime): List<Verification>
     fun findByStudentIdAndVerificationDateBetweenOrderByVerificationDateAsc(

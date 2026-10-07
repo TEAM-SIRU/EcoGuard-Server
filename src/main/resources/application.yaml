@@ -13,6 +13,8 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # 목록 조회에서 지연 로딩 컬렉션(사유·사진 목록)이 항목마다 쿼리를 내지 않도록 묶어서 가져온다.
+        default_batch_fetch_size: 100
   servlet:
     multipart:
       # 사진 한 장은 10MB 까지. 이의신청은 사진을 최대 3장 한 번에 보내므로 요청 전체는 그보다 넉넉하게 둔다.
@@ -60,7 +62,7 @@ ai-review:
     capacity: ${AI_REVIEW_QUEUE_CAPACITY:200}
     max-wait-seconds: ${AI_REVIEW_MAX_WAIT_SECONDS:300}
 
-# 무료 요금제는 분당 호출 수가 적어 동시 호출을 제한한다. 키가 비어 있으면 모든 인증이 교사 수동 검토로 넘어간다.
+# 동시 호출 수는 ai-review.queue.workers 로만 조절한다. 키가 비어 있으면 모든 인증이 교사 수동 검토로 넘어간다.
 gemini:
   api-key: ${GEMINI_API_KEY:}
   model: ${GEMINI_MODEL:gemini-2.5-flash-lite}
@@ -70,7 +72,6 @@ gemini:
   # models 항목에 한도를 쓰지 않았을 때의 모델당 분당 요청 한도. 0 이면 한도를 두지 않고 429 응답으로만 조절한다.
   rpm-limit: ${GEMINI_RPM_LIMIT:0}
   timeout-millis: 15000
-  max-concurrency: 2
   rate-limit-cooldown-seconds: 60   # 429 를 낸 모델을 선택에서 제외하는 시간(응답에 Retry-After 가 있으면 그 값)
   unavailable-cooldown-seconds: 10  # 503/5xx/시간 초과가 난 모델을 제외하는 시간
   max-attempts: 3                   # 한 건의 검수에서 Gemini 를 호출해 보는 최대 횟수
