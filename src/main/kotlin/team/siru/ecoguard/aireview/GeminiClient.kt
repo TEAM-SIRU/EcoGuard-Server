@@ -10,6 +10,8 @@ import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.ObjectMapper
+import java.time.Clock
+import java.time.Duration
 import java.util.Base64
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
@@ -17,72 +19,139 @@ import java.util.concurrent.TimeUnit
 /**
  * 자체 AI 모델이 준비되기 전까지 Gemini API 로 청소 인증 사진을 검수한다.
  * 통과(PASS)만 자동 승인하고, 그 외(FAIL, 오류, 한도 초과)는 학생이 억울하게 반려되지 않도록 교사 수동 검토로 보낸다.
+ *
+ * 여러 모델을 등록할 수 있다([GeminiProperties.models]). 요청마다 [GeminiModelPool] 이 지금 여유 있는 모델을 골라 주고,
+ * 429/503/장애가 나면 그 모델을 잠시 제외한 채 다음 모델로 다시 시도한다. 쓸 수 있는 모델이 없으면 자리가 날 때까지 기다리되,
+ * 제출 후 [AiReviewQueueProperties.maxWaitSeconds] 를 넘기면 수동 검토로 보낸다.
  */
 @Component
 @ConditionalOnProperty(prefix = "ai-review", name = ["provider"], havingValue = "gemini", matchIfMissing = true)
 class GeminiClient(
     private val geminiRestClient: RestClient,
     private val properties: GeminiProperties,
+    private val queueProperties: AiReviewQueueProperties,
     private val objectMapper: ObjectMapper,
+    private val clock: Clock,
 ) : AiEvaluator {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val slots = Semaphore(properties.maxConcurrency.coerceAtLeast(1))
+    private val pool = GeminiModelPool(properties.modelSpecs(), clock)
+
+    init {
+        log.info(
+            "Gemini 검수 모델(우선순위 순): {} / 동시 {}건 / 건당 최대 {}회 시도",
+            properties.modelSpecs().joinToString { if (it.rpmLimit > 0) "${it.name}(분당 ${it.rpmLimit})" else it.name },
+            properties.maxConcurrency,
+            properties.maxAttempts,
+        )
+    }
 
     override fun evaluate(request: EvaluateRequest): AiEvaluateOutcome {
         if (properties.apiKey.isBlank()) {
             log.warn("GEMINI_API_KEY 가 설정되지 않아 수동 검토로 넘깁니다")
             return manualReview(ManualReviewReason.MODEL_NOT_READY)
         }
+        val deadline = (request.queuedAt ?: clock.instant()).plusSeconds(queueProperties.maxWaitSeconds)
+        val body = buildBody(request)
+        val maxAttempts = properties.maxAttempts.coerceAtLeast(1)
+        var attempts = 0
+        var lastFailure: Failure? = null
+
+        while (true) {
+            if (Thread.currentThread().isInterrupted) return manualReview(ManualReviewReason.TIMEOUT)
+            if (clock.instant().isAfter(deadline)) {
+                return manualReview(lastFailure?.reason ?: ManualReviewReason.TIMEOUT, lastFailure?.rawResponse)
+            }
+            when (val pick = pool.acquire()) {
+                is GeminiModelPool.Pick.WaitFor -> {
+                    // 쓸 수 있는 모델이 없다(모두 한도에 닿았거나 잠시 제외 중). 기다려도 상한을 넘기면 포기하고 수동 검토로 보낸다.
+                    if (clock.instant().plus(pick.duration).isAfter(deadline)) {
+                        return manualReview(lastFailure?.reason ?: ManualReviewReason.RATE_LIMITED, lastFailure?.rawResponse)
+                    }
+                    pause(pick.duration.toMillis())
+                }
+
+                is GeminiModelPool.Pick.Use -> when (val result = attempt(pick.model, body)) {
+                    is Attempt.Done -> return result.outcome
+                    is Attempt.Failed -> {
+                        lastFailure = result.failure
+                        attempts++
+                        if (attempts >= maxAttempts) return manualReview(result.failure.reason, result.failure.rawResponse)
+                        log.info("Gemini 모델 {} 실패({}), 다른 모델로 다시 시도합니다 ({}/{})", pick.model, result.failure.reason, attempts, maxAttempts)
+                    }
+                }
+            }
+        }
+    }
+
+    /** 대기 구현. 테스트에서 실제로 쉬지 않도록 열어 둔다. */
+    protected open fun pause(millis: Long) {
+        try {
+            Thread.sleep(millis)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+    }
+
+    private sealed interface Attempt {
+        /** 더 시도할 필요가 없는 결과(성공이거나, 다른 모델로 바꿔도 소용없는 실패) */
+        data class Done(val outcome: AiEvaluateOutcome) : Attempt
+
+        /** 이 모델로는 실패했으므로 다른 모델로 다시 시도해 볼 수 있다. */
+        data class Failed(val failure: Failure) : Attempt
+    }
+
+    private data class Failure(val reason: ManualReviewReason, val rawResponse: String?)
+
+    private fun attempt(model: String, body: String): Attempt {
         if (!slots.tryAcquire(SLOT_WAIT_SECONDS, TimeUnit.SECONDS)) {
-            return manualReview(ManualReviewReason.TIMEOUT)
+            return Attempt.Done(manualReview(ManualReviewReason.TIMEOUT))
         }
         try {
-            return callWithRetry(buildBody(request))
+            return Attempt.Done(parse(call(model, body)))
+        } catch (e: HttpClientErrorException) {
+            val status = e.statusCode.value()
+            val raw = errorBody(e.responseBodyAsString)
+            when (status) {
+                429 -> {
+                    val cooldown = retryAfter(e) ?: Duration.ofSeconds(properties.rateLimitCooldownSeconds)
+                    pool.cooldown(model, cooldown)
+                    log.warn("Gemini 모델 {} 한도 초과(429), {}초 동안 제외합니다", model, cooldown.seconds)
+                    return Attempt.Failed(Failure(ManualReviewReason.RATE_LIMITED, raw))
+                }
+
+                404 -> {
+                    pool.cooldown(model, MISSING_MODEL_COOLDOWN)
+                    log.warn("Gemini 모델 {} 을(를) 찾을 수 없습니다. 모델 이름을 확인하세요", model)
+                    return Attempt.Failed(Failure(ManualReviewReason.AI_ERROR, raw))
+                }
+
+                else -> {
+                    // 키가 잘못됐거나 요청이 거부된 경우라 다른 모델로 바꿔도 같은 결과다.
+                    log.warn("Gemini rejected request (model={}, status={})", model, status)
+                    return Attempt.Done(manualReview(ManualReviewReason.AI_ERROR, raw))
+                }
+            }
+        } catch (e: HttpServerErrorException) {
+            pool.cooldown(model, Duration.ofSeconds(properties.unavailableCooldownSeconds))
+            log.warn("Gemini unavailable (model={}, status={})", model, e.statusCode.value())
+            return Attempt.Failed(Failure(ManualReviewReason.MODEL_NOT_READY, errorBody(e.responseBodyAsString)))
+        } catch (e: Exception) {
+            pool.cooldown(model, Duration.ofSeconds(properties.unavailableCooldownSeconds))
+            log.warn("Gemini call failed (model={})", model, e)
+            return Attempt.Failed(Failure(ManualReviewReason.TIMEOUT, null))
         } finally {
             slots.release()
         }
     }
 
-    private fun callWithRetry(body: String): AiEvaluateOutcome {
-        var retried = false
-        while (true) {
-            try {
-                return parse(call(body))
-            } catch (e: HttpClientErrorException) {
-                val status = e.statusCode.value()
-                if (status == 429 && !retried) {
-                    retried = true
-                    pauseBeforeRetry()
-                    continue
-                }
-                log.warn("Gemini rejected request (status={})", status)
-                return manualReview(
-                    if (status == 429) ManualReviewReason.RATE_LIMITED else ManualReviewReason.AI_ERROR,
-                    errorBody(e.responseBodyAsString),
-                )
-            } catch (e: HttpServerErrorException) {
-                val status = e.statusCode.value()
-                if (status == 503 && !retried) {
-                    retried = true
-                    pauseBeforeRetry()
-                    continue
-                }
-                log.warn("Gemini unavailable (status={})", status)
-                return manualReview(ManualReviewReason.MODEL_NOT_READY, errorBody(e.responseBodyAsString))
-            } catch (e: Exception) {
-                log.warn("Gemini call failed", e)
-                return manualReview(ManualReviewReason.TIMEOUT)
-            }
-        }
-    }
+    /** 429 응답의 `Retry-After`(초)가 있으면 그만큼, 너무 짧거나 길면 1~300초로 맞춰 제외한다. */
+    private fun retryAfter(e: HttpClientErrorException): Duration? =
+        e.responseHeaders?.getFirst("Retry-After")?.trim()?.toLongOrNull()?.coerceIn(1, 300)?.let(Duration::ofSeconds)
 
-    private fun pauseBeforeRetry() {
-        if (properties.retryDelayMillis > 0) Thread.sleep(properties.retryDelayMillis)
-    }
-
-    private fun call(body: String): String? = geminiRestClient.post()
-        .uri("/v1beta/models/{model}:generateContent", properties.model)
+    private fun call(model: String, body: String): String? = geminiRestClient.post()
+        .uri("/v1beta/models/{model}:generateContent", model)
         .header("x-goog-api-key", properties.apiKey)
         .contentType(MediaType.APPLICATION_JSON)
         .body(body)
@@ -195,6 +264,9 @@ class GeminiClient(
     private companion object {
         const val SLOT_WAIT_SECONDS = 30L
         const val MAX_ERROR_BODY_CHARS = 2000
+
+        /** 없는 모델(404)은 설정 오류일 가능성이 커서 오래 제외한다. */
+        val MISSING_MODEL_COOLDOWN: Duration = Duration.ofMinutes(10)
 
         val FAIL_REASONS = listOf(
             "ZONE_NOT_RECOGNIZED",

@@ -14,11 +14,13 @@ import org.springframework.test.web.client.response.MockRestResponseCreators.wit
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
 import org.springframework.web.client.RestClient
 import team.siru.ecoguard.aireview.AiEvaluateOutcome
+import team.siru.ecoguard.aireview.AiReviewQueueProperties
 import team.siru.ecoguard.aireview.EvaluateRequest
 import team.siru.ecoguard.aireview.GeminiClient
 import team.siru.ecoguard.aireview.GeminiProperties
 import team.siru.ecoguard.aireview.ManualReviewReason
 import tools.jackson.databind.ObjectMapper
+import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -38,11 +40,28 @@ class GeminiClientTests @Autowired constructor(
 
     private val url = "http://gemini.test/v1beta/models/test-model:generateContent"
 
-    private fun newClient(apiKey: String = "test-key"): Pair<GeminiClient, MockRestServiceServer> {
+    private fun modelUrl(model: String) = "http://gemini.test/v1beta/models/$model:generateContent"
+
+    /** 대기 시간을 실제로 기다리지 않고 가짜 시계만 앞으로 돌린다. 기다린 시간(ms)은 [pauses]에 쌓는다. */
+    private val clock = MutableClock(Instant.parse("2026-10-07T07:30:00Z"))
+    private val pauses = mutableListOf<Long>()
+
+    private fun newClient(
+        apiKey: String = "test-key",
+        models: List<String> = emptyList(),
+        maxAttempts: Int = 3,
+        queue: AiReviewQueueProperties = AiReviewQueueProperties(),
+    ): Pair<GeminiClient, MockRestServiceServer> {
         val builder = RestClient.builder().baseUrl("http://gemini.test")
         val server = MockRestServiceServer.bindTo(builder).build()
-        val properties = GeminiProperties(apiKey = apiKey, model = "test-model", retryDelayMillis = 0)
-        return GeminiClient(builder.build(), properties, objectMapper) to server
+        val properties = GeminiProperties(apiKey = apiKey, model = "test-model", models = models, maxAttempts = maxAttempts)
+        val client = object : GeminiClient(builder.build(), properties, queue, objectMapper, clock) {
+            override fun pause(millis: Long) {
+                pauses += millis
+                clock.set(clock.instant().plusMillis(millis))
+            }
+        }
+        return client to server
     }
 
     /** Gemini 가 구조화된 JSON 판정을 text 로 담아 돌려주는 응답 형태 */
@@ -138,7 +157,7 @@ class GeminiClientTests @Autowired constructor(
     fun `an error body from Gemini is kept but cut to a bounded length`() {
         val (client, server) = newClient()
         val body = """{"error":"quota exceeded"}""" + "x".repeat(5000)
-        repeat(2) {
+        repeat(3) {
             server.expect(requestTo(url)).andRespond(
                 withStatus(HttpStatus.TOO_MANY_REQUESTS).body(body).contentType(MediaType.APPLICATION_JSON),
             )
@@ -152,22 +171,80 @@ class GeminiClientTests @Autowired constructor(
     }
 
     @Test
-    fun `rate limit is retried once then goes to manual review`() {
+    fun `a single model that keeps hitting the rate limit is waited out and then goes to manual review`() {
         val (client, server) = newClient()
-        server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS))
-        server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS))
+        repeat(3) { server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)) }
 
         val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(client.evaluate(request))
 
         assertEquals(ManualReviewReason.RATE_LIMITED, outcome.reason)
+        // 429 를 받은 모델은 60초 동안 제외되므로, 다음 시도 전에 그만큼 기다린다.
+        assertEquals(listOf(60_000L, 60_000L), pauses)
         server.verify()
     }
 
     @Test
-    fun `rate limit followed by success is approved`() {
+    fun `rate limit followed by success is approved after waiting out the cooldown`() {
         val (client, server) = newClient()
         server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS))
         server.expect(requestTo(url)).andRespond(
+            withSuccess(geminiBody("""{"is_passed":true,"fail_reasons":[]}"""), MediaType.APPLICATION_JSON),
+        )
+
+        assertIs<AiEvaluateOutcome.Success>(client.evaluate(request))
+        assertEquals(listOf(60_000L), pauses)
+        server.verify()
+    }
+
+    @Test
+    fun `a 429 moves on to the next model immediately without waiting`() {
+        val (client, server) = newClient(models = listOf("model-a", "model-b"))
+        server.expect(requestTo(modelUrl("model-a"))).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS))
+        server.expect(requestTo(modelUrl("model-b"))).andRespond(
+            withSuccess(geminiBody("""{"is_passed":true,"fail_reasons":[]}"""), MediaType.APPLICATION_JSON),
+        )
+
+        assertIs<AiEvaluateOutcome.Success>(client.evaluate(request))
+        assertEquals(emptyList(), pauses)
+        server.verify()
+    }
+
+    @Test
+    fun `a model that just returned 429 is skipped by the next request`() {
+        val (client, server) = newClient(models = listOf("model-a", "model-b"))
+        server.expect(requestTo(modelUrl("model-a"))).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS))
+        server.expect(requestTo(modelUrl("model-b"))).andRespond(
+            withSuccess(geminiBody("""{"is_passed":true,"fail_reasons":[]}"""), MediaType.APPLICATION_JSON),
+        )
+        // 같은 클라이언트의 두 번째 요청은 아직 쿨다운 중인 model-a 를 건너뛰고 바로 model-b 로 간다.
+        server.expect(requestTo(modelUrl("model-b"))).andRespond(
+            withSuccess(geminiBody("""{"is_passed":true,"fail_reasons":[]}"""), MediaType.APPLICATION_JSON),
+        )
+
+        assertIs<AiEvaluateOutcome.Success>(client.evaluate(request))
+        assertIs<AiEvaluateOutcome.Success>(client.evaluate(request))
+        assertEquals(emptyList(), pauses)
+        server.verify()
+    }
+
+    @Test
+    fun `all models failing with 429 goes to manual review after one try each`() {
+        val (client, server) = newClient(models = listOf("model-a", "model-b"), maxAttempts = 2)
+        server.expect(requestTo(modelUrl("model-a"))).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS))
+        server.expect(requestTo(modelUrl("model-b"))).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS))
+
+        val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(client.evaluate(request))
+
+        assertEquals(ManualReviewReason.RATE_LIMITED, outcome.reason)
+        assertEquals(emptyList(), pauses)
+        server.verify()
+    }
+
+    @Test
+    fun `a model that is not found is skipped and the next model is used`() {
+        val (client, server) = newClient(models = listOf("model-a", "model-b"))
+        server.expect(requestTo(modelUrl("model-a"))).andRespond(withStatus(HttpStatus.NOT_FOUND))
+        server.expect(requestTo(modelUrl("model-b"))).andRespond(
             withSuccess(geminiBody("""{"is_passed":true,"fail_reasons":[]}"""), MediaType.APPLICATION_JSON),
         )
 
@@ -176,15 +253,55 @@ class GeminiClientTests @Autowired constructor(
     }
 
     @Test
-    fun `server error goes to manual review as model not ready`() {
+    fun `Retry-After from Gemini decides how long the model is skipped`() {
+        val (client, server) = newClient(maxAttempts = 2)
+        server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).header("Retry-After", "5"))
+        server.expect(requestTo(url)).andRespond(
+            withSuccess(geminiBody("""{"is_passed":true,"fail_reasons":[]}"""), MediaType.APPLICATION_JSON),
+        )
+
+        assertIs<AiEvaluateOutcome.Success>(client.evaluate(request))
+        assertEquals(listOf(5_000L), pauses)
+        server.verify()
+    }
+
+    @Test
+    fun `it gives up instead of waiting past the maximum wait time`() {
+        val (client, server) = newClient(queue = AiReviewQueueProperties(maxWaitSeconds = 30))
+        // 429 로 60초 제외되는데 대기 상한은 30초라 기다리지 않고 바로 수동 검토로 보낸다.
+        server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS))
+
+        val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(client.evaluate(request))
+
+        assertEquals(ManualReviewReason.RATE_LIMITED, outcome.reason)
+        assertEquals(emptyList(), pauses)
+        server.verify()
+    }
+
+    @Test
+    fun `a request that already waited too long is not sent to Gemini at all`() {
         val (client, server) = newClient()
-        server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR))
+
+        val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(
+            client.evaluate(request.copy(queuedAt = clock.instant().minusSeconds(301))),
+        )
+
+        assertEquals(ManualReviewReason.TIMEOUT, outcome.reason)
+        server.verify()
+    }
+
+    @Test
+    fun `server errors are retried on the next attempt then go to manual review as model not ready`() {
+        val (client, server) = newClient()
+        repeat(3) { server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)) }
 
         val outcome = assertIs<AiEvaluateOutcome.NeedsManualReview>(client.evaluate(request))
 
         assertEquals(ManualReviewReason.MODEL_NOT_READY, outcome.reason)
+        // 장애가 난 모델은 10초 동안 제외된다.
+        assertEquals(listOf(10_000L, 10_000L), pauses)
+        server.verify()
     }
-
     @Test
     fun `rejected request such as a bad key goes to manual review as AI error`() {
         val (client, server) = newClient()

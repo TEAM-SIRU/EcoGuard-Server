@@ -14,4 +14,7 @@ enum class ManualReviewReason {
 
     /** AI 호출 거부나 해석할 수 없는 응답 */
     AI_ERROR,
+
+    /** 제출이 한꺼번에 몰려 AI 검수 대기열이 가득 찼다. */
+    QUEUE_FULL,
 }

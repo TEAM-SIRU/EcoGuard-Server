@@ -48,6 +48,8 @@
   * `gemini`(기본): 자체 AI 모델이 준비되기 전까지 Gemini API로 검수. 통과만 자동 승인하고, 통과하지 못한 인증은 자동 반려하지 않고 교사 수동 검토로 전환 (`AI_FAILED`, AI가 지적한 사유는 `failReasons`로 함께 전달)
   * `ai-server`: 자체 AI 서버로 검수 (AI 모델이 준비되면 전환). 어느 쪽이든 통과로 확실히 판정된 경우만 자동 승인하고, 그 외(불통과, 판정 누락, 통과인데 사유가 있는 모순된 응답)는 자동 반려하지 않고 교사 수동 검토로 보냅니다. `REJECTED`는 교사가 반려할 때만 생깁니다.
 * 호출 한도 초과(`RATE_LIMITED`), AI 오류(`AI_ERROR`, `MODEL_NOT_READY`), 응답 지연(`TIMEOUT`), 구역을 알 수 없는 경우(`UNKNOWN_ZONE`), 검수가 10분 넘게 끝나지 않는 경우에도 교사 수동 검토로 전환
+* 제출이 한꺼번에 몰려도 AI 호출은 `AI_REVIEW_WORKERS`개씩만 처리하고 나머지는 **크기가 제한된 대기열**에서 차례를 기다립니다. 대기열에는 사진 바이트가 아니라 파일 경로만 넣고, 차례가 오면 파일에서 읽어 보냅니다. 대기열이 가득 차면 `QUEUE_FULL`, 제출 후 `AI_REVIEW_MAX_WAIT_SECONDS`가 지나면 `TIMEOUT`으로 자동 반려 없이 수동 검토로 보냅니다.
+* Gemini는 모델을 여러 개 등록할 수 있습니다(`GEMINI_MODELS`). 요청마다 **분당 한도에 여유가 있는 모델**을 우선 쓰고, 429/503/장애가 나면 그 모델을 잠시 제외(429는 60초 또는 `Retry-After`, 그 밖은 10초)한 채 **다음 모델로 다시 시도**합니다. 건당 최대 `max-attempts`(기본 3)번 시도하고, 모든 모델이 막혀 있으면 자리가 날 때까지 기다리다 대기 시간 상한을 넘기면 수동 검토로 보냅니다. 모델 사용량 집계는 서버 메모리에만 있어 서버가 한 대일 때 정확하고 재시작하면 초기화됩니다.
 * `ai_reviews` 테이블에는 **AI가 실제로 한 판정**(`decision`, `is_passed`)과 응답 원문(`raw_response`)을 저장합니다. 판정을 해석하지 못한 응답과 Gemini 오류 응답(앞 2000자)도 원문을 남기며 이때 판정은 비어 있습니다. 서버가 수동 검토로 보낸 최종 처리와 이유는 인증의 `status`, `manualReviewReason`에 따로 남습니다.
 * 인증 승인 시 봉사시간 10분 적립
 
@@ -289,6 +291,11 @@ GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수. 서�
 AI_REVIEW_PROVIDER=gemini                      # 선택, gemini(기본) 또는 ai-server
 GEMINI_API_KEY=                                # gemini일 때 필요. 비어 있으면 모두 수동 검토
 GEMINI_MODEL=gemini-2.5-flash-lite             # 선택, AI Studio에서 쓸 수 있는 모델과 한도 확인
+GEMINI_MODELS=                               # 선택, 우선순위 순서의 모델 목록(쉼표 구분, `이름` 또는 `이름:분당요청한도`). 예) gemini-2.5-flash-lite:15,gemini-2.5-flash:10. 비우면 GEMINI_MODEL 하나만 사용
+GEMINI_RPM_LIMIT=0                             # 선택, 목록에서 한도를 안 쓴 모델의 분당 요청 한도. 0이면 한도 없이 429 응답으로만 조절
+AI_REVIEW_WORKERS=2                            # 선택, 동시에 AI 검수를 처리하는 작업 수
+AI_REVIEW_QUEUE_CAPACITY=200                   # 선택, 대기열 최대 건수. 넘으면 수동 검토(QUEUE_FULL)
+AI_REVIEW_MAX_WAIT_SECONDS=300                 # 선택, 제출 후 이 시간(초) 안에 AI 응답이 없으면 수동 검토(TIMEOUT)
 NEIS_API_KEY=                                  # 선택, open.neis.go.kr에서 발급. 비어 있으면 방학 제한 없음
 NEIS_EDUCATION_OFFICE_CODE=                    # NEIS 키를 쓸 때 필수, 시도교육청 코드 (예: F10)
 NEIS_SCHOOL_CODE=                              # NEIS 키를 쓸 때 필수, 표준학교코드

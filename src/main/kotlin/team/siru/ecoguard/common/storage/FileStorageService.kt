@@ -54,16 +54,27 @@ class FileStorageService(
 
     /** [storeImage] 가 돌려준 URL 의 파일을 지운다. 저장 폴더 밖을 가리키거나 이미 없으면 무시한다. */
     fun delete(url: String) {
-        val prefix = "${properties.publicUrlPrefix}/"
-        if (!url.startsWith(prefix)) return
-        val base = Path.of(properties.basePath).toAbsolutePath().normalize()
-        val target = base.resolve(url.removePrefix(prefix)).normalize()
-        if (!target.startsWith(base)) return
+        val target = resolve(url) ?: return
         try {
             Files.deleteIfExists(target)
         } catch (e: IOException) {
             log.warn("사진 파일을 지우지 못했습니다: {}", target.fileName, e)
         }
+    }
+
+    /** [storeImage] 가 돌려준 URL 의 사진을 읽는다. 저장 폴더 밖을 가리키거나 파일이 없으면 예외가 난다. */
+    fun read(url: String): ByteArray {
+        val target = resolve(url) ?: throw IllegalArgumentException("저장된 사진의 경로가 아닙니다: $url")
+        return Files.readAllBytes(target)
+    }
+
+    /** 공개 URL 을 저장 폴더 안의 실제 파일 경로로 바꾼다. 저장 폴더 밖을 가리키면 null 이다. */
+    private fun resolve(url: String): Path? {
+        val prefix = "${properties.publicUrlPrefix}/"
+        if (!url.startsWith(prefix)) return null
+        val base = Path.of(properties.basePath).toAbsolutePath().normalize()
+        val target = base.resolve(url.removePrefix(prefix)).normalize()
+        return target.takeIf { it.startsWith(base) }
     }
 
     private fun detectExtension(bytes: ByteArray): String? {

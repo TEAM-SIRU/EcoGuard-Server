@@ -5,8 +5,8 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile
-import team.siru.ecoguard.aireview.AiReviewService
-import team.siru.ecoguard.aireview.EvaluateRequest
+import team.siru.ecoguard.aireview.AiReviewDispatcher
+import team.siru.ecoguard.aireview.ReviewJob
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
@@ -28,7 +28,7 @@ class VerificationService(
     private val assignmentRepository: AssignmentRepository,
     private val userRepository: UserRepository,
     private val fileStorageService: FileStorageService,
-    private val aiReviewService: AiReviewService,
+    private val aiReviewDispatcher: AiReviewDispatcher,
     private val vacationService: VacationService,
     private val properties: VerificationProperties,
     private val clock: Clock,
@@ -98,17 +98,19 @@ class VerificationService(
         }
 
         // 비동기 검수가 커밋되지 않은 인증 행을 읽지 못하는 일이 없도록 커밋 이후에 검수를 시작한다.
+        // 대기열에는 사진 바이트가 아니라 파일 경로만 넣는다. 사진은 차례가 와서 AI 에 보내기 직전에 파일에서 읽는다.
         val verificationId = verification.id
-        val evaluateRequest = EvaluateRequest(
-            imageBytes = imageBytes,
+        val job = ReviewJob(
+            photoUrl = photoUrl,
             zoneId = area.zoneCode,
             zoneName = area.name,
             zoneDescription = area.description,
             userId = student.studentNumber,
+            queuedAt = clock.instant(),
         )
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
-                aiReviewService.processReview(verificationId, evaluateRequest)
+                aiReviewDispatcher.dispatch(verificationId, job)
             }
         })
 
