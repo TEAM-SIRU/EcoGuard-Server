@@ -380,7 +380,9 @@ GitHub Actions로 테스트와 배포를 자동화합니다 (`.github/workflows`
 
 배포에 필요한 설정은 다음과 같습니다.
 
-* GitHub Secrets: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY` (배포 전용 키)
+* GitHub Secrets: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PRIVATE_KEY` (배포 전용 키), `SSH_KNOWN_HOSTS` (서버 호스트 키 고정)
+  * `SSH_KNOWN_HOSTS`는 서버에서 호스트 키를 확인해 만듭니다. 포트가 22가 아니면 `[호스트]:포트` 형식이어야 하며, 로컬에서 `ssh-keyscan -p <포트> <호스트>` 로 받은 결과를 서버의 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` 지문과 비교한 뒤 그대로 등록합니다.
+  * 이 시크릿이 없으면 배포는 되지만, 접속할 때 받은 호스트 키를 그대로 신뢰한다는 경고가 나옵니다.
 * 서버: 배포 전용 공개키를 `~/.ssh/authorized_keys`에 등록하고, `sudo systemctl restart ecoguard`를 비밀번호 없이 실행하도록 sudoers에 허용
 * 서버 환경변수 파일(`ecoguard.env`)은 배포가 건드리지 않으므로 새 환경변수가 생기면 서버에서 직접 추가한 뒤 배포합니다.
 
