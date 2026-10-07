@@ -13,8 +13,6 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
-import java.util.concurrent.Semaphore
-import java.util.concurrent.TimeUnit
 
 /**
  * 자체 AI 모델이 준비되기 전까지 Gemini API 로 청소 인증 사진을 검수한다.
@@ -35,14 +33,12 @@ class GeminiClient(
 ) : AiEvaluator {
 
     private val log = LoggerFactory.getLogger(javaClass)
-    private val slots = Semaphore(properties.maxConcurrency.coerceAtLeast(1))
     private val pool = GeminiModelPool(properties.modelSpecs(), clock)
 
     init {
         log.info(
-            "Gemini 검수 모델(우선순위 순): {} / 동시 {}건 / 건당 최대 {}회 시도",
+            "Gemini 검수 모델(우선순위 순): {} / 건당 최대 {}회 시도",
             properties.modelSpecs().joinToString { if (it.rpmLimit > 0) "${it.name}(분당 ${it.rpmLimit})" else it.name },
-            properties.maxConcurrency,
             properties.maxAttempts,
         )
     }
@@ -105,9 +101,6 @@ class GeminiClient(
     private data class Failure(val reason: ManualReviewReason, val rawResponse: String?)
 
     private fun attempt(model: String, body: String): Attempt {
-        if (!slots.tryAcquire(SLOT_WAIT_SECONDS, TimeUnit.SECONDS)) {
-            return Attempt.Done(manualReview(ManualReviewReason.TIMEOUT))
-        }
         try {
             return Attempt.Done(parse(call(model, body)))
         } catch (e: HttpClientErrorException) {
@@ -141,8 +134,6 @@ class GeminiClient(
             pool.cooldown(model, Duration.ofSeconds(properties.unavailableCooldownSeconds))
             log.warn("Gemini call failed (model={})", model, e)
             return Attempt.Failed(Failure(ManualReviewReason.TIMEOUT, null))
-        } finally {
-            slots.release()
         }
     }
 
@@ -262,7 +253,6 @@ class GeminiClient(
     )
 
     private companion object {
-        const val SLOT_WAIT_SECONDS = 30L
         const val MAX_ERROR_BODY_CHARS = 2000
 
         /** 없는 모델(404)은 설정 오류일 가능성이 커서 오래 제외한다. */

@@ -1,13 +1,18 @@
 package team.siru.ecoguard.appeal
 
 import jakarta.persistence.LockModeType
+import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface AppealRepository : JpaRepository<Appeal, Long> {
+    /** 교사 목록은 학생·인증·구역을 모두 보여 주므로 한 번에 가져온다. */
+    @EntityGraph(attributePaths = ["student", "verification", "verification.area"])
     fun findByStatusOrderByCreatedAtAsc(status: AppealStatus): List<Appeal>
+
+    @EntityGraph(attributePaths = ["student", "verification", "verification.area"])
     fun findAllByOrderByCreatedAtAscIdAsc(): List<Appeal>
     fun findByStudentIdOrderByCreatedAtDescIdDesc(studentId: Long): List<Appeal>
     fun countByVerificationId(verificationId: Long): Long
