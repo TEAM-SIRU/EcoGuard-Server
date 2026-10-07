@@ -187,6 +187,50 @@ class ClientFeedbackApiTests @Autowired constructor(
     }
 
     @Test
+    fun `approved appeal reports awarded minutes only when time was actually accrued`() {
+        val teacher = login("TEACHER|9604|t4@test.local|Teacher4|||")
+        val student = userRepository.findByGsmAccountId(9601)!!
+        fun appealOn(day: Int): Pair<Verification, Long> {
+            val verification = verificationRepository.save(
+                Verification(
+                    student = student, area = area, photoUrl = "/files/a.jpg",
+                    verificationDate = LocalDate.of(2026, 10, day), status = VerificationStatus.REJECTED,
+                ),
+            )
+            val appealId = objectMapper.readTree(
+                mockMvc.post("/api/v1/verifications/${verification.id}/appeals") {
+                    header("Authorization", "Bearer $token")
+                    contentType = MediaType.APPLICATION_JSON
+                    content = """{"content":"please"}"""
+                }.andExpect { status { isCreated() } }.andReturn().response.contentAsString,
+            ).get("appealId").asLong()
+            return verification to appealId
+        }
+        fun approve(appealId: Long) = mockMvc.patch("/api/v1/appeals/$appealId") {
+            header("Authorization", "Bearer $teacher")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"decision":"APPROVED"}"""
+        }.andExpect { status { isOk() } }
+
+        // 이미 승인된 인증에 대한 이의신청: 적립이 없으므로 awardedMinutes 도 없다.
+        val (alreadyApproved, alreadyApprovedAppeal) = appealOn(1)
+        alreadyApproved.status = VerificationStatus.APPROVED
+        verificationRepository.save(alreadyApproved)
+        approve(alreadyApprovedAppeal)
+        // 반려 상태였던 인증: 승인되면 10분이 적립된다.
+        val (_, normalAppeal) = appealOn(2)
+        approve(normalAppeal)
+
+        val mine = objectMapper.readTree(
+            mockMvc.get("/api/v1/appeals/me") { header("Authorization", "Bearer $token") }
+                .andReturn().response.contentAsString,
+        ).associateBy { it.get("appealId").asLong() }
+        assertEquals("APPROVED", mine.getValue(alreadyApprovedAppeal).get("status").asText())
+        assertEquals(true, mine.getValue(alreadyApprovedAppeal).get("awardedMinutes")?.isNull ?: true)
+        assertEquals(10, mine.getValue(normalAppeal).get("awardedMinutes").asInt())
+    }
+
+    @Test
     fun `resubmission with the same idempotency key returns the first result`() {
         fun submit(key: String?, startedAt: String? = null) = mockMvc.multipart("/api/v1/verifications") {
             file(MockMultipartFile("photo", "photo.png", "image/png", pngBytes()))

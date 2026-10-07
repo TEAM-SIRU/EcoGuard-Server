@@ -1,7 +1,6 @@
 package team.siru.ecoguard.appeal.dto
 
 import jakarta.validation.constraints.NotBlank
-import team.siru.ecoguard.appeal.APPEAL_APPROVED_MINUTES
 import team.siru.ecoguard.appeal.Appeal
 import team.siru.ecoguard.appeal.AppealStatus
 import java.time.LocalDate
@@ -77,7 +76,7 @@ data class MyAppealResponse(
     val photoUrls: List<String>,
     /** PENDING(검토 중) / APPROVED(승인, +10분) / REJECTED(반려) */
     val status: AppealStatus,
-    /** 승인되어 적립된 시간(분). 승인 전이거나 반려면 null */
+    /** 실제로 적립된 시간(분). 승인 전·반려이거나, 이미 승인된 인증이라 적립이 없었으면 null */
     val awardedMinutes: Int?,
     val replyTitle: String?,
     val reply: String?,
@@ -93,7 +92,7 @@ data class MyAppealResponse(
             content = appeal.content,
             photoUrls = appeal.photoUrls.toList(),
             status = appeal.status,
-            awardedMinutes = if (appeal.status == AppealStatus.APPROVED) APPEAL_APPROVED_MINUTES else null,
+            awardedMinutes = appeal.awardedMinutes,
             replyTitle = appeal.replyTitle,
             reply = appeal.reply,
             createdAt = appeal.createdAt,
