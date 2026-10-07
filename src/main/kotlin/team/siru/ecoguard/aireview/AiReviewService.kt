@@ -82,9 +82,11 @@ class AiReviewService(
             }
 
             is AiEvaluateOutcome.NeedsManualReview -> {
+                // 응답 원문이 있으면(판정을 해석하지 못한 경우 포함) 분석할 수 있게 남기고, 판정은 AI 가 실제로 말한 값을 그대로 저장한다.
+                // 수동 검토로 보낸 서버의 최종 처리와 이유는 인증의 status 와 manualReviewReason 에 따로 남는다.
                 outcome.rawResponse?.let {
                     aiReviewRepository.save(
-                        AiReview(verification = verification, rawResponse = it, decision = "FAIL", isPassed = false),
+                        AiReview(verification = verification, rawResponse = it, decision = outcome.decision, isPassed = outcome.isPassed),
                     )
                 }
                 verification.failReasons = outcome.failReasons.toMutableList()

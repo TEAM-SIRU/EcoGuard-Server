@@ -48,6 +48,7 @@
   * `gemini`(기본): 자체 AI 모델이 준비되기 전까지 Gemini API로 검수. 통과만 자동 승인하고, 통과하지 못한 인증은 자동 반려하지 않고 교사 수동 검토로 전환 (`AI_FAILED`, AI가 지적한 사유는 `failReasons`로 함께 전달)
   * `ai-server`: 자체 AI 서버로 검수 (AI 모델이 준비되면 전환). 어느 쪽이든 통과로 확실히 판정된 경우만 자동 승인하고, 그 외(불통과, 판정 누락, 통과인데 사유가 있는 모순된 응답)는 자동 반려하지 않고 교사 수동 검토로 보냅니다. `REJECTED`는 교사가 반려할 때만 생깁니다.
 * 호출 한도 초과(`RATE_LIMITED`), AI 오류(`AI_ERROR`, `MODEL_NOT_READY`), 응답 지연(`TIMEOUT`), 구역을 알 수 없는 경우(`UNKNOWN_ZONE`), 검수가 10분 넘게 끝나지 않는 경우에도 교사 수동 검토로 전환
+* `ai_reviews` 테이블에는 **AI가 실제로 한 판정**(`decision`, `is_passed`)과 응답 원문(`raw_response`)을 저장합니다. 판정을 해석하지 못한 응답과 Gemini 오류 응답(앞 2000자)도 원문을 남기며 이때 판정은 비어 있습니다. 서버가 수동 검토로 보낸 최종 처리와 이유는 인증의 `status`, `manualReviewReason`에 따로 남습니다.
 * 인증 승인 시 봉사시간 10분 적립
 
 ### Appeal

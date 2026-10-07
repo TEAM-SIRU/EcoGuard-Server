@@ -57,7 +57,10 @@ class GeminiClient(
                     continue
                 }
                 log.warn("Gemini rejected request (status={})", status)
-                return manualReview(if (status == 429) ManualReviewReason.RATE_LIMITED else ManualReviewReason.AI_ERROR)
+                return manualReview(
+                    if (status == 429) ManualReviewReason.RATE_LIMITED else ManualReviewReason.AI_ERROR,
+                    errorBody(e.responseBodyAsString),
+                )
             } catch (e: HttpServerErrorException) {
                 val status = e.statusCode.value()
                 if (status == 503 && !retried) {
@@ -66,7 +69,7 @@ class GeminiClient(
                     continue
                 }
                 log.warn("Gemini unavailable (status={})", status)
-                return manualReview(ManualReviewReason.MODEL_NOT_READY)
+                return manualReview(ManualReviewReason.MODEL_NOT_READY, errorBody(e.responseBodyAsString))
             } catch (e: Exception) {
                 log.warn("Gemini call failed", e)
                 return manualReview(ManualReviewReason.TIMEOUT)
@@ -95,7 +98,8 @@ class GeminiClient(
         }.getOrNull()
         if (verdict?.isPassed == null) {
             log.warn("Gemini 응답을 판정으로 해석하지 못했습니다")
-            return manualReview(ManualReviewReason.AI_ERROR)
+            // 원인을 분석할 수 있게 해석하지 못한 응답의 원문을 남긴다. AI 가 판정을 주지 않았으므로 판정값은 비워 둔다.
+            return manualReview(ManualReviewReason.AI_ERROR, rawResponse)
         }
 
         // 통과 여부는 걸러내기 전의 사유로 판단한다. 알 수 없는 사유가 섞인 "통과"를 사유가 없는 통과로 착각하지 않도록,
@@ -108,8 +112,18 @@ class GeminiClient(
                 rawResponse,
             )
         }
-        return AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.AI_FAILED, rawResponse, failReasons)
+        // AI 가 실제로 말한 판정(통과인데 사유가 있는 모순된 응답이면 PASS)을 그대로 남기고, 서버가 수동 검토로 보낸 이유는 AI_FAILED 로 따로 남긴다.
+        return AiEvaluateOutcome.NeedsManualReview(
+            ManualReviewReason.AI_FAILED,
+            rawResponse,
+            failReasons,
+            decision = if (verdict.isPassed) "PASS" else "FAIL",
+            isPassed = verdict.isPassed,
+        )
     }
+
+    /** 오류 응답 본문은 길 수 있으므로 앞부분만 남긴다. 비어 있으면 저장할 것이 없다. */
+    private fun errorBody(body: String?): String? = body?.takeIf { it.isNotBlank() }?.take(MAX_ERROR_BODY_CHARS)
 
     private fun buildBody(request: EvaluateRequest): String {
         val isPng = request.imageBytes.size > 4 && request.imageBytes[0] == 0x89.toByte() && request.imageBytes[1] == 0x50.toByte()
@@ -154,7 +168,8 @@ class GeminiClient(
         reason 에는 판단 근거를 한 문장으로 적습니다.
     """.trimIndent()
 
-    private fun manualReview(reason: ManualReviewReason) = AiEvaluateOutcome.NeedsManualReview(reason)
+    private fun manualReview(reason: ManualReviewReason, rawResponse: String? = null) =
+        AiEvaluateOutcome.NeedsManualReview(reason, rawResponse)
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class GeminiResponse(val candidates: List<Candidate>? = null) {
@@ -179,6 +194,7 @@ class GeminiClient(
 
     private companion object {
         const val SLOT_WAIT_SECONDS = 30L
+        const val MAX_ERROR_BODY_CHARS = 2000
 
         val FAIL_REASONS = listOf(
             "ZONE_NOT_RECOGNIZED",
