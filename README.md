@@ -306,6 +306,16 @@ DEMO_ACCOUNT_AUTH_CODE=                        # 켤 때 필수, 16자 이상의
 
 실제 인증 정보 및 비밀키는 저장소에 포함하지 않습니다.
 
+#### 기존 DB 마이그레이션 (청소구역 좌표 제거)
+
+청소구역의 `x`, `y` 좌표를 제거하고 앱이 `zoneCode`로 도면 칸을 찾도록 바꿨습니다. 마이그레이션 도구가 없고 운영은 `DDL_AUTO=validate`라서 컬럼이 자동으로 지워지지 않습니다. `x`, `y`가 `NOT NULL`(기본값 없음)이면 새 구역 INSERT가 실패하므로, 이 버전을 배포하기 **전에** 기존 DB에서 한 번 실행합니다.
+
+```sql
+ALTER TABLE cleaning_areas DROP COLUMN x, DROP COLUMN y;
+```
+
+(빈 DB를 `DDL_AUTO=update`로 새로 만들 때는 필요 없습니다.) 응답에서 `coordinates`(`GET /cleaning-areas`), `mapCoordinates`(`GET /assignments/me`)가 사라졌으므로 앱도 `zoneCode` 기준으로 맞춰야 합니다.
+
 ### 3. Build
 
 Windows:

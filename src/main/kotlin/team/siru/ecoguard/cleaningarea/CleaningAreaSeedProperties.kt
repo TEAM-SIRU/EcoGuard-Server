@@ -18,8 +18,6 @@ data class CleaningAreaSeedItem(
     val description: String? = null,
     val cleanTime: String? = null,
     val semester: CleaningAreaSemester = CleaningAreaSemester.COMMON,
-    val x: Double = 0.0,
-    val y: Double = 0.0,
     /** 최초 생성 시에만 적용된다. 이후 활성 여부는 교사가 API로 관리한다. */
     val active: Boolean = false,
     /** AI 모델 학습이 끝난 구역만 true로 바꾼다. 준비되지 않은 구역은 활성화할 수 없다. */
