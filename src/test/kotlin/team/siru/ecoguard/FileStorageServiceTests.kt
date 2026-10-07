@@ -54,6 +54,19 @@ class FileStorageServiceTests {
     }
 
     @Test
+    fun `only jpg and png are accepted`() {
+        // GIF, BMP 는 읽을 수 있는 이미지여도 AI 에 형식을 잘못 알려 줄 수 있어 받지 않는다.
+        for (format in listOf("gif", "bmp")) {
+            val ex = assertThrows<BusinessException>("$format 은 거부해야 한다") {
+                service().storeImage(imageBytes(format), "photo.$format", "verifications")
+            }
+            assertTrue(ex.errorCode == ErrorCode.INVALID_IMAGE)
+        }
+        assertTrue(service().storeImage(imageBytes("jpg"), "a.jpg", "verifications").endsWith(".jpg"))
+        assertTrue(service().storeImage(imageBytes("png"), "a.png", "verifications").endsWith(".png"))
+    }
+
+    @Test
     fun `non image content is rejected even with an image extension`() {
         val ex = assertThrows<BusinessException> {
             service().storeImage("<html><script>alert(1)</script></html>".toByteArray(), "photo.jpg", "verifications")

@@ -56,12 +56,14 @@ class FileStorageService(
         /** 최신 스마트폰 사진(최대 약 5천만 화소)까지 허용하고 그보다 큰 이미지는 거부한다. */
         private const val MAX_PIXELS = 50_000_000L
 
+        /**
+         * 받는 사진 형식은 JPG, PNG 두 가지뿐이다. AI 검수에 사진을 보낼 때 형식(mime type)을 JPEG/PNG 둘 중 하나로
+         * 알려 주므로, 그 밖의 형식(GIF, BMP 등)을 받으면 AI 에 잘못된 형식을 알려 줄 수 있다.
+         */
         private val ALLOWED_EXTENSIONS = mapOf(
             "jpeg" to "jpg",
             "jpg" to "jpg",
             "png" to "png",
-            "gif" to "gif",
-            "bmp" to "bmp",
         )
     }
 }

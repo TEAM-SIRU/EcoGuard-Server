@@ -21,7 +21,7 @@ class CleaningAreaService(
 
     @Transactional(readOnly = true)
     fun getAreas(): List<AreaMapResponse> {
-        val assignmentsByArea = assignmentRepository.findAll().groupBy { it.area.id }
+        val assignmentsByArea = assignmentRepository.findAllWithStudent().groupBy { it.area.id }
         return cleaningAreaRepository.findAll().map { AreaMapResponse.from(it, assignmentsByArea[it.id].orEmpty()) }
     }
 

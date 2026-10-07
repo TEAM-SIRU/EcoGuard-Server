@@ -35,7 +35,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     ZONE_MODEL_NOT_READY(HttpStatus.CONFLICT, "AI 모델이 준비되지 않은 구역은 활성화할 수 없습니다."),
 
     // verifications
-    INVALID_IMAGE(HttpStatus.BAD_REQUEST, "읽을 수 없는 이미지입니다."),
+    INVALID_IMAGE(HttpStatus.BAD_REQUEST, "읽을 수 없는 이미지입니다. JPG, PNG 사진만 올릴 수 있습니다."),
     OUT_OF_CERTIFICATION_TIME(HttpStatus.FORBIDDEN, "인증 시간이 아닙니다."),
     VACATION_PERIOD(HttpStatus.FORBIDDEN, "방학 기간에는 인증할 수 없습니다."),
     ALREADY_SUBMITTED_TODAY(HttpStatus.CONFLICT, "오늘 이미 제출했습니다."),
