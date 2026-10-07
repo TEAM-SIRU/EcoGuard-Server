@@ -8,7 +8,8 @@ import team.siru.ecoguard.user.Role
 
 /**
  * 실제 dataGSM 연동(GsmOAuthRealClient) 전까지, 또는 실 연동 없이 로컬에서
- * 테스트하고 싶을 때 사용하는 목(mock) 구현체. `gsm.oauth.mock=true`(기본값)일 때 활성화된다.
+ * 테스트하고 싶을 때 사용하는 목(mock) 구현체. `gsm.oauth.mock=true`일 때만 활성화된다. 기본값은 false 이고,
+ * 인가 코드 문자열만으로 교사를 포함해 누구로든 로그인되므로 운영에서는 절대 켜지 않는다.
  *
  * authCode 형식(파이프 구분): "role|gsmAccountId|email|name|studentNumber|grade|classNo"
  * - 학생 예시: "STUDENT|1|10101@gsm.hs.kr|홍길동|1101|1|1"

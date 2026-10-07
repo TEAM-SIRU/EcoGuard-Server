@@ -10,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.support.MissingServletRequestPartException
 
 @RestControllerAdvice
@@ -45,6 +46,13 @@ class GlobalExceptionHandler {
     fun handleUnreadableRequest(e: Exception): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.status)
             .body(ErrorResponse(ErrorCode.VALIDATION_ERROR.name, ErrorCode.VALIDATION_ERROR.defaultMessage))
+    }
+
+    /** 업로드 한도(사진 한 장 10MB, 요청 전체 32MB)를 넘으면 서버 오류(500)가 아니라 이미지 오류로 알려 준다. */
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    fun handleUploadTooLarge(e: MaxUploadSizeExceededException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(ErrorCode.INVALID_IMAGE.status)
+            .body(ErrorResponse(ErrorCode.INVALID_IMAGE.name, "사진 용량이 너무 큽니다. 사진 한 장은 10MB 이하여야 합니다."))
     }
 
     @ExceptionHandler(AuthenticationException::class)
