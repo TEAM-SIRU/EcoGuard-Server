@@ -62,7 +62,9 @@ class AiReviewService(
                         isPassed = response.isPassed,
                     ),
                 )
-                if (response.isPassed == true) {
+                // 어떤 검수 구현이든 "통과"로 확실히 말한 경우에만 자동 승인한다. 그 외(불통과, 값 누락, 통과인데 사유가 있는 모순된 응답)는
+                // 학생이 억울하게 반려되지 않도록 자동 반려하지 않고 교사 수동 검토로 보낸다. REJECTED 는 교사가 수동 검토에서 반려할 때만 생긴다.
+                if (response.isPassed == true && response.failReasons.isNullOrEmpty()) {
                     verification.status = VerificationStatus.APPROVED
                     activityService.accumulate(
                         studentId = verification.student.id,
@@ -72,8 +74,10 @@ class AiReviewService(
                         date = verification.verificationDate,
                     )
                 } else {
-                    verification.status = VerificationStatus.REJECTED
                     verification.failReasons = (response.failReasons ?: emptyList()).toMutableList()
+                    verification.status = VerificationStatus.MANUAL_REVIEW
+                    verification.manualReviewReason =
+                        (if (response.isPassed == null) ManualReviewReason.AI_ERROR else ManualReviewReason.AI_FAILED).name
                 }
             }
 

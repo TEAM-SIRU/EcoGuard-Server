@@ -98,8 +98,11 @@ class GeminiClient(
             return manualReview(ManualReviewReason.AI_ERROR)
         }
 
-        val failReasons = (verdict.failReasons ?: emptyList()).filter { it in FAIL_REASONS }
-        if (verdict.isPassed && failReasons.isEmpty()) {
+        // 통과 여부는 걸러내기 전의 사유로 판단한다. 알 수 없는 사유가 섞인 "통과"를 사유가 없는 통과로 착각하지 않도록,
+        // 사유가 하나라도 있으면(모르는 값이어도) 수동 검토로 보낸다. 저장하는 사유는 정해진 코드만 남긴다.
+        val reportedReasons = verdict.failReasons ?: emptyList()
+        val failReasons = reportedReasons.filter { it in FAIL_REASONS }
+        if (verdict.isPassed && reportedReasons.isEmpty()) {
             return AiEvaluateOutcome.Success(
                 AiEvaluateResponse(decision = "PASS", isPassed = true, failReasons = emptyList()),
                 rawResponse,
