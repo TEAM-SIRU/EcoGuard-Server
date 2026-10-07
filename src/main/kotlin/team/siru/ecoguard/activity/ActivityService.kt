@@ -13,6 +13,7 @@ import team.siru.ecoguard.cleaningarea.Assignment
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
+import team.siru.ecoguard.schoolcalendar.VacationService
 import team.siru.ecoguard.user.Role
 import team.siru.ecoguard.user.UserRepository
 import team.siru.ecoguard.verification.CleaningTimeWindow
@@ -34,6 +35,7 @@ class ActivityService(
     private val userRepository: UserRepository,
     private val assignmentRepository: AssignmentRepository,
     private val verificationRepository: VerificationRepository,
+    private val vacationService: VacationService,
     private val clock: Clock,
 ) {
 
@@ -78,11 +80,13 @@ class ActivityService(
         val monday = now.toLocalDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val friday = monday.plusDays((CLEANING_DAYS_PER_WEEK - 1).toLong())
         val days = buildRecords(studentId, monday, friday, now).map { WeeklyDay(it.date, it.result) }
+        // 방학인 평일은 인증할 수 없으므로 이번 주 필요 일수에서 뺀다.
+        val vacationDays = (0 until CLEANING_DAYS_PER_WEEK).count { vacationService.isVacation(monday.plusDays(it.toLong())) }
         return WeeklyActivityResponse(
             weekStart = monday,
             weekEnd = friday,
             completedDays = days.count { it.result == ActivityResult.APPROVED },
-            requiredDays = CLEANING_DAYS_PER_WEEK,
+            requiredDays = CLEANING_DAYS_PER_WEEK - vacationDays,
             days = days,
         )
     }
@@ -134,7 +138,7 @@ class ActivityService(
     /**
      * [from, to] 범위의 평일마다 인증 결과를 만든다. 제출한 날은 인증 상태를,
      * 배정 이후 인증 시간이 지났는데 제출하지 않은 평일은 NOT_SUBMITTED로 표시한다.
-     * (공휴일/방학은 아직 반영하지 않는다.)
+     * 주말과 방학(NEIS 학사일정)은 인증할 수 없으므로 제출이 없는 날은 제외한다. (공휴일은 아직 반영하지 않는다.)
      */
     private fun buildRecords(studentId: Long, from: LocalDate, to: LocalDate, now: LocalDateTime): List<ActivityRecord> {
         val verifications = verificationRepository
@@ -154,6 +158,8 @@ class ActivityService(
                 when {
                     verification != null -> verification.toRecord(minutesByDate[date] ?: 0)
                     activeSince == null || date.isBefore(activeSince) -> null
+                    // 방학에는 인증이 막혀 있으므로 미제출/예정으로 세지 않는다. (이미 제출된 인증은 위에서 그대로 보여 준다.)
+                    vacationService.isVacation(date) -> null
                     isWindowOver(date, assignment, now) ->
                         ActivityRecord(date, assignment?.area?.name, ActivityResult.NOT_SUBMITTED, null, null, 0)
                     else -> ActivityRecord(date, assignment?.area?.name, ActivityResult.UPCOMING, null, null, 0)
