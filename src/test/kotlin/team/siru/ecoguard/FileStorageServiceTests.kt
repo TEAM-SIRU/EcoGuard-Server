@@ -42,6 +42,18 @@ class FileStorageServiceTests {
     }
 
     @Test
+    fun `image with too many pixels is rejected before decoding`() {
+        // 단색 PNG 는 파일이 작지만 8000x8000(6400만 화소)이라 디코딩하면 메모리를 많이 쓴다.
+        val out = ByteArrayOutputStream()
+        ImageIO.write(BufferedImage(8000, 8000, BufferedImage.TYPE_BYTE_GRAY), "png", out)
+
+        val ex = assertThrows<BusinessException> {
+            service().storeImage(out.toByteArray(), "huge.png", "verifications")
+        }
+        assertTrue(ex.errorCode == ErrorCode.INVALID_IMAGE)
+    }
+
+    @Test
     fun `non image content is rejected even with an image extension`() {
         val ex = assertThrows<BusinessException> {
             service().storeImage("<html><script>alert(1)</script></html>".toByteArray(), "photo.jpg", "verifications")

@@ -374,7 +374,9 @@ GitHub Actions로 테스트와 배포를 자동화합니다 (`.github/workflows`
 | 워크플로 | 시점 | 동작 |
 | -------- | ---- | ---- |
 | `ci.yml` | `main` 대상 PR | `./gradlew test` |
-| `deploy.yml` | `main`에 머지(push), 수동 실행 가능 | 테스트/빌드 → SSH로 `/opt/ecoguard/app.jar` 업로드 → `systemctl restart ecoguard` → `/auth/callback` 302 헬스체크(최대 3분) |
+| `deploy.yml` | `main`에 머지(push), 수동 실행 가능 | 테스트/빌드 → SSH로 `/opt/ecoguard/app.jar.new` 업로드 → 기존 jar를 `app.jar.bak`으로 백업하고 교체 → `systemctl restart ecoguard` → `/auth/callback` 302 헬스체크(최대 3분). 실패하면 `app.jar.bak`으로 자동 롤백 |
+
+**엔티티(컬럼/테이블)를 바꾸는 PR은 머지하기 전에 운영 DB에 먼저 ALTER를 적용합니다.** 운영은 `DDL_AUTO=validate`라서 컬럼이 없으면 새 버전이 기동하지 못합니다. 이 경우 배포는 실패로 끝나고 이전 버전으로 자동 롤백되지만, DB를 고친 뒤 Actions에서 해당 배포를 다시 실행(Re-run)해야 새 버전이 반영됩니다.
 
 배포에 필요한 설정은 다음과 같습니다.
 

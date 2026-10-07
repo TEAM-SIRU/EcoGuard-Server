@@ -41,8 +41,9 @@ class AppealService(
         if (photos.size > MAX_PHOTOS) {
             throw BusinessException(ErrorCode.TOO_MANY_APPEAL_PHOTOS)
         }
-        val verification = verificationRepository.findById(verificationId)
-            .orElseThrow { BusinessException(ErrorCode.VERIFICATION_NOT_FOUND) }
+        // 같은 인증에 동시에 이의신청이 들어와도 검토 중인 신청이 둘 생기지 않도록 인증 행을 잠근 뒤 확인한다.
+        val verification = verificationRepository.findWithLockById(verificationId)
+            ?: throw BusinessException(ErrorCode.VERIFICATION_NOT_FOUND)
         if (verification.student.id != studentId || verification.status != VerificationStatus.REJECTED) {
             throw BusinessException(ErrorCode.APPEAL_NOT_ALLOWED)
         }

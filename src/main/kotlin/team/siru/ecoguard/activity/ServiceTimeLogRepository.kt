@@ -11,4 +11,7 @@ interface ServiceTimeLogRepository : JpaRepository<ServiceTimeLog, Long> {
 
     @Query("select coalesce(sum(l.minutes), 0) from ServiceTimeLog l where l.student.id = :studentId")
     fun sumMinutesByStudentId(@Param("studentId") studentId: Long): Long
+
+    @Query("select l.student.id, sum(l.minutes) from ServiceTimeLog l where l.student.id in :studentIds group by l.student.id")
+    fun sumMinutesByStudentIdIn(@Param("studentIds") studentIds: Collection<Long>): List<Array<Any>>
 }

@@ -1,10 +1,35 @@
 package team.siru.ecoguard.verification
 
+import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import java.time.LocalDate
 import java.time.LocalDateTime
 
 interface VerificationRepository : JpaRepository<Verification, Long> {
+    /** 검수 결과 반영·수동 승인·이의신청처럼 인증 상태를 바꾸거나 판단 근거로 쓰는 곳에서 동시 처리를 막기 위해 행을 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from Verification v where v.id = :id")
+    fun findWithLockById(@Param("id") id: Long): Verification?
+
+    /** 학생들의 가장 최근 인증(날짜 기준)을 한 번에 가져온다. */
+    @Query(
+        "select v from Verification v where v.student.id in :studentIds and v.verificationDate = " +
+            "(select max(v2.verificationDate) from Verification v2 where v2.student.id = v.student.id)",
+    )
+    fun findLatestByStudentIdIn(@Param("studentIds") studentIds: Collection<Long>): List<Verification>
+
+    @Query(
+        "select v.student.id, count(v) from Verification v " +
+            "where v.student.id in :studentIds and v.status = :status group by v.student.id",
+    )
+    fun countByStudentIdInAndStatus(
+        @Param("studentIds") studentIds: Collection<Long>,
+        @Param("status") status: VerificationStatus,
+    ): List<Array<Any>>
+
     fun existsByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Boolean
     fun findByStudentIdAndIdempotencyKey(studentId: Long, idempotencyKey: String): Verification?
     fun findByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Verification?
