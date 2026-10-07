@@ -85,6 +85,7 @@ class AppealService(
             val verification = appeal.verification
             if (verification.status != VerificationStatus.APPROVED) {
                 verification.status = VerificationStatus.APPROVED
+                appeal.awardedMinutes = APPEAL_APPROVED_MINUTES
                 activityService.accumulate(
                     studentId = appeal.student.id,
                     minutes = APPEAL_APPROVED_MINUTES,

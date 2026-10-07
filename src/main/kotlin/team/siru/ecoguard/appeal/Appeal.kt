@@ -45,6 +45,9 @@ class Appeal(
     @Column(columnDefinition = "TEXT")
     var reply: String? = null,
 
+    /** 승인으로 실제 적립된 시간(분). 승인 전·반려, 또는 이미 승인된 인증이라 적립이 없었으면 null */
+    var awardedMinutes: Int? = null,
+
     /** 이의신청 시 다시 찍어 첨부한 사진 (최대 3장, 첨부한 순서) */
     @ElementCollection
     @CollectionTable(name = "appeal_photos", joinColumns = [JoinColumn(name = "appeal_id")])

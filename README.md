@@ -316,6 +316,17 @@ ALTER TABLE cleaning_areas DROP COLUMN x, DROP COLUMN y;
 
 (빈 DB를 `DDL_AUTO=update`로 새로 만들 때는 필요 없습니다.) 응답에서 `coordinates`(`GET /cleaning-areas`), `mapCoordinates`(`GET /assignments/me`)가 사라졌으므로 앱도 `zoneCode` 기준으로 맞춰야 합니다.
 
+#### 기존 DB 마이그레이션 (이의신청 적립 시간)
+
+`GET /appeals/me`의 `awardedMinutes`가 승인 여부가 아니라 **실제로 적립된 시간**을 보여 주도록 `appeals.awarded_minutes` 컬럼을 추가했습니다. 이미 승인된 인증에 이의신청이 승인되면 적립이 없으므로 `null`입니다. 운영은 `DDL_AUTO=validate`라서 이 버전을 배포하기 **전에** 기존 DB에서 한 번 실행합니다.
+
+```sql
+ALTER TABLE appeals ADD COLUMN awarded_minutes INT NULL;
+UPDATE appeals SET awarded_minutes = 10 WHERE status = 'APPROVED';
+```
+
+(`UPDATE`는 기존 승인 건을 예전 동작대로 10분으로 채우는 용도입니다. 이미 승인된 인증이었던 과거 건은 구분할 수 없습니다.)
+
 ### 3. Build
 
 Windows:
