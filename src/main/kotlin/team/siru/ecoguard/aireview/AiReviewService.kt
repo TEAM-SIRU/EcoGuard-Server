@@ -70,17 +70,29 @@ class AiReviewService(
             return
         }
 
-        val outcome = aiEvaluator.evaluate(
-            EvaluateRequest(
-                imageBytes = imageBytes,
-                zoneId = job.zoneId,
-                zoneName = job.zoneName,
-                zoneDescription = job.zoneDescription,
-                userId = job.userId,
-                queuedAt = job.queuedAt,
-            ),
-        )
-        transactionTemplate.executeWithoutResult { applyOutcome(verificationId, outcome) }
+        // 예상 못 한 예외가 나도 @Async 가 삼키므로, 10분 뒤 복구 작업을 기다리지 않고 바로 수동 검토로 보낸다.
+        try {
+            val outcome = aiEvaluator.evaluate(
+                EvaluateRequest(
+                    imageBytes = imageBytes,
+                    zoneId = job.zoneId,
+                    zoneName = job.zoneName,
+                    zoneDescription = job.zoneDescription,
+                    userId = job.userId,
+                    queuedAt = job.queuedAt,
+                ),
+            )
+            transactionTemplate.executeWithoutResult { applyOutcome(verificationId, outcome) }
+        } catch (e: Exception) {
+            log.error("AI 검수 중 예외가 나 수동 검토로 보냅니다 (id={})", verificationId, e)
+            try {
+                transactionTemplate.executeWithoutResult {
+                    applyOutcome(verificationId, AiEvaluateOutcome.NeedsManualReview(ManualReviewReason.AI_ERROR))
+                }
+            } catch (inner: Exception) {
+                log.error("수동 검토로 보내지도 못했습니다. 복구 작업이 처리합니다 (id={})", verificationId, inner)
+            }
+        }
     }
 
     /**

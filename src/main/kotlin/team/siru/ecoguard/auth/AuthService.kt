@@ -1,6 +1,8 @@
 package team.siru.ecoguard.auth
 
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.transaction.annotation.Transactional
 import team.siru.ecoguard.auth.dto.LoginResponse
 import team.siru.ecoguard.auth.dto.TokenResponse
@@ -19,13 +21,26 @@ class AuthService(
     private val userRepository: UserRepository,
     private val jwtTokenProvider: JwtTokenProvider,
     private val tokenRevocationChecker: TokenRevocationChecker,
+    private val transactionTemplate: TransactionTemplate,
 ) {
 
-    @Transactional
     fun login(authCode: String): LoginResponse {
+        // 외부 OAuth 호출은 트랜잭션(DB 커넥션) 밖에서 한다.
         val userInfo = demoAccountAuthenticator.authenticate(authCode) ?: gsmOAuthClient.authenticate(authCode)
 
-        val user = userRepository.findByGsmAccountId(userInfo.gsmAccountId)
+        // 같은 계정의 첫 로그인 요청이 동시에 오면 둘 다 새로 가입하려다 유니크 제약에 걸린다. 한 번 더 시도하면 이미 가입된 사용자를 찾는다.
+        val user = try {
+            transactionTemplate.execute { upsertUser(userInfo) }!!
+        } catch (e: DataIntegrityViolationException) {
+            transactionTemplate.execute { upsertUser(userInfo) }!!
+        }
+
+        val tokenPair = jwtTokenProvider.generateTokenPair(user.id, user.role)
+        return LoginResponse(tokenPair.accessToken, tokenPair.refreshToken, UserSummaryResponse.from(user))
+    }
+
+    private fun upsertUser(userInfo: GsmUserInfo): User =
+        userRepository.findByGsmAccountId(userInfo.gsmAccountId)
             ?.apply {
                 email = userInfo.email
                 name = userInfo.name
@@ -34,7 +49,7 @@ class AuthService(
                 grade = userInfo.grade
                 classNo = userInfo.classNo
             }
-            ?: userRepository.save(
+            ?: userRepository.saveAndFlush(
                 User(
                     gsmAccountId = userInfo.gsmAccountId,
                     email = userInfo.email,
@@ -45,10 +60,6 @@ class AuthService(
                     classNo = userInfo.classNo,
                 ),
             )
-
-        val tokenPair = jwtTokenProvider.generateTokenPair(user.id, user.role)
-        return LoginResponse(tokenPair.accessToken, tokenPair.refreshToken, UserSummaryResponse.from(user))
-    }
 
     /**
      * 리프레시 토큰을 검증하고 새 토큰 쌍을 발급한다(회전). 리프레시 토큰의 7일 유효기간이 사용할 때마다
