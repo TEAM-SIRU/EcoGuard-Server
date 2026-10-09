@@ -4,6 +4,7 @@ import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.time.LocalDate
@@ -39,6 +40,23 @@ interface VerificationRepository : JpaRepository<Verification, Long> {
     @EntityGraph(attributePaths = ["student", "area"])
     fun findByStatusOrderByCreatedAtAsc(status: VerificationStatus): List<Verification>
     fun findByStatusAndCreatedAtBefore(status: VerificationStatus, createdAt: LocalDateTime): List<Verification>
+
+    /**
+     * 아직 [from] 상태인 건만 조건부로 바꾼다. 검수 결과 반영(행 잠금)과 동시에 일어나도, 이미 처리된 건은 덮어쓰지 않는다.
+     * 바뀐 행 수를 돌려준다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        "update Verification v set v.status = :to, v.manualReviewReason = :reason, v.updatedAt = :now " +
+            "where v.id in :ids and v.status = :from",
+    )
+    fun transitionStatus(
+        @Param("ids") ids: Collection<Long>,
+        @Param("from") from: VerificationStatus,
+        @Param("to") to: VerificationStatus,
+        @Param("reason") reason: String,
+        @Param("now") now: LocalDateTime,
+    ): Int
     fun findByStudentIdAndVerificationDateBetweenOrderByVerificationDateAsc(
         studentId: Long,
         from: LocalDate,
