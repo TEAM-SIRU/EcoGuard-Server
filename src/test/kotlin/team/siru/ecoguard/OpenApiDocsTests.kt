@@ -9,11 +9,13 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import tools.jackson.databind.ObjectMapper
 
 @SpringBootTest(properties = ["springdoc.api-docs.enabled=true"])
 @AutoConfigureMockMvc
 class OpenApiDocsTests @Autowired constructor(
     private val mockMvc: MockMvc,
+    private val objectMapper: ObjectMapper,
 ) {
 
     @Test
@@ -23,6 +25,20 @@ class OpenApiDocsTests @Autowired constructor(
         assertTrue(body.contains("\"/api/v1/auth/login\""), body.take(300))
         assertTrue(body.contains("\"/api/v1/verifications\""), body.take(300))
         assertTrue(body.contains("bearerAuth"), body.take(300))
+    }
+
+    @Test
+    fun `error codes from ApiErrors are listed per status`() {
+        val root = objectMapper.readTree(mockMvc.get("/v3/api-docs").andReturn().response.contentAsString)
+        val apply = root.at("/paths/~1api~1v1~1recruitments~1{recruitmentId}~1applications/post/responses")
+
+        assertTrue(apply.has("201"), apply.toString())
+        assertFalse(apply.has("200"), apply.toString())
+        assertTrue(apply.at("/409/description").asText().contains("ALREADY_APPLIED"), apply.toString())
+        assertTrue(apply.at("/409/description").asText().contains("RECRUITMENT_FULL"), apply.toString())
+        assertTrue(apply.at("/403/description").asText().contains("CLASS_MISMATCH"), apply.toString())
+        assertTrue(apply.at("/403/description").asText().contains("FORBIDDEN"), apply.toString())
+        assertTrue(apply.at("/400/description").asText().contains("VALIDATION_ERROR"), apply.toString())
     }
 }
 

@@ -18,6 +18,7 @@ import java.time.OffsetDateTime
 import team.siru.ecoguard.verification.dto.MyVerificationResponse
 import team.siru.ecoguard.verification.dto.SubmitVerificationResponse
 import team.siru.ecoguard.verification.dto.TodayVerificationResponse
+import team.siru.ecoguard.common.exception.ApiErrors
 
 private const val MAX_IDEMPOTENCY_KEY_LENGTH = 64
 
@@ -28,6 +29,7 @@ class VerificationController(
 ) {
 
     @PostMapping(consumes = ["multipart/form-data"])
+    @ApiErrors(ErrorCode.VALIDATION_ERROR, ErrorCode.NO_ASSIGNMENT, ErrorCode.NOT_ASSIGNED_AREA, ErrorCode.OUT_OF_CERTIFICATION_TIME, ErrorCode.VACATION_PERIOD, ErrorCode.ALREADY_SUBMITTED_TODAY, ErrorCode.INVALID_IMAGE, ErrorCode.USER_NOT_FOUND, success = 201)
     @PreAuthorize("hasRole('STUDENT')")
     fun submit(
         @RequestPart("photo") photo: MultipartFile,
@@ -49,6 +51,7 @@ class VerificationController(
     }
 
     @GetMapping("/today")
+    @ApiErrors(ErrorCode.NO_ASSIGNMENT)
     @PreAuthorize("hasRole('STUDENT')")
     fun getToday(): ResponseEntity<TodayVerificationResponse> =
         ResponseEntity.ok(verificationService.getToday(SecurityUtils.currentUserId()))

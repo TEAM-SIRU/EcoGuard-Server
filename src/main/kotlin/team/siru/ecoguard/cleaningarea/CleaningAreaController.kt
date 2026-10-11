@@ -17,6 +17,8 @@ import team.siru.ecoguard.cleaningarea.dto.AssignmentResponse
 import team.siru.ecoguard.cleaningarea.dto.MyAssignmentResponse
 import team.siru.ecoguard.cleaningarea.dto.UpdateAreaRequest
 import team.siru.ecoguard.common.security.SecurityUtils
+import team.siru.ecoguard.common.exception.ApiErrors
+import team.siru.ecoguard.common.exception.ErrorCode
 
 @RestController
 @RequestMapping("/api/v1")
@@ -29,6 +31,7 @@ class CleaningAreaController(
         ResponseEntity.ok(cleaningAreaService.getAreas())
 
     @PostMapping("/cleaning-areas/{areaId}/assignments")
+    @ApiErrors(ErrorCode.AREA_NOT_FOUND, ErrorCode.INACTIVE_AREA, ErrorCode.STUDENT_NOT_FOUND, success = 201)
     @PreAuthorize("hasRole('TEACHER')")
     fun assignStudents(
         @PathVariable areaId: Long,
@@ -39,11 +42,13 @@ class CleaningAreaController(
     }
 
     @GetMapping("/assignments/me")
+    @ApiErrors(ErrorCode.NO_ASSIGNMENT)
     @PreAuthorize("hasRole('STUDENT')")
     fun getMyAssignment(): ResponseEntity<MyAssignmentResponse> =
         ResponseEntity.ok(cleaningAreaService.getMyAssignment(SecurityUtils.currentUserId()))
 
     @PatchMapping("/cleaning-areas/{areaId}")
+    @ApiErrors(ErrorCode.AREA_NOT_FOUND, ErrorCode.ZONE_MODEL_NOT_READY)
     @PreAuthorize("hasRole('TEACHER')")
     fun updateArea(@PathVariable areaId: Long, @Valid @RequestBody request: UpdateAreaRequest): ResponseEntity<Void> {
         cleaningAreaService.updateArea(areaId, request)

@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import team.siru.ecoguard.common.security.SecurityUtils
 import team.siru.ecoguard.user.dto.MyProfileResponse
+import team.siru.ecoguard.common.exception.ApiErrors
+import team.siru.ecoguard.common.exception.ErrorCode
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -16,11 +18,13 @@ class UserController(
 ) {
 
     @GetMapping("/me")
+    @ApiErrors(ErrorCode.USER_NOT_FOUND)
     fun getMyProfile(): ResponseEntity<MyProfileResponse> =
         ResponseEntity.ok(userService.getMyProfile(SecurityUtils.currentUserId()))
 
     /** 회원 탈퇴(학생). 개인정보를 익명화하고 모든 토큰을 무효화한다. */
     @DeleteMapping("/me")
+    @ApiErrors(ErrorCode.USER_NOT_FOUND)
     @PreAuthorize("hasRole('STUDENT')")
     fun withdraw(): ResponseEntity<Void> {
         userService.withdraw(SecurityUtils.currentUserId())

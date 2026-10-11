@@ -14,6 +14,8 @@ import team.siru.ecoguard.aireview.dto.ManualReviewItemResponse
 import team.siru.ecoguard.aireview.dto.ReviewResultResponse
 import team.siru.ecoguard.common.security.SecurityUtils
 import team.siru.ecoguard.user.Role
+import team.siru.ecoguard.common.exception.ApiErrors
+import team.siru.ecoguard.common.exception.ErrorCode
 
 @RestController
 @RequestMapping("/api/v1/verifications")
@@ -27,6 +29,7 @@ class AiReviewController(
         ResponseEntity.ok(aiReviewService.getManualReviewQueue())
 
     @PatchMapping("/{verificationId}/review")
+    @ApiErrors(ErrorCode.REVIEW_NOT_FOUND, ErrorCode.NOT_MANUAL_REVIEW)
     @PreAuthorize("hasRole('TEACHER')")
     fun decide(
         @PathVariable verificationId: Long,
@@ -37,6 +40,7 @@ class AiReviewController(
     }
 
     @GetMapping("/{verificationId}/review")
+    @ApiErrors(ErrorCode.REVIEW_NOT_FOUND)
     @PreAuthorize("hasAnyRole('STUDENT', 'TEACHER')")
     fun getReviewResult(@PathVariable verificationId: Long): ResponseEntity<ReviewResultResponse> {
         val requesterId = if (SecurityUtils.hasRole(Role.TEACHER)) null else SecurityUtils.currentUserId()
