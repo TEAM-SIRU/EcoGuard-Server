@@ -16,6 +16,7 @@ import team.siru.ecoguard.common.security.SecurityUtils
 import java.time.Clock
 import java.time.DateTimeException
 import java.time.YearMonth
+import team.siru.ecoguard.common.exception.ApiErrors
 
 @RestController
 @RequestMapping("/api/v1")
@@ -25,6 +26,7 @@ class ActivityController(
 ) {
 
     @GetMapping("/service-times/me")
+    @ApiErrors(ErrorCode.VALIDATION_ERROR)
     @PreAuthorize("hasRole('STUDENT')")
     fun getMyActivity(
         @RequestParam(required = false) year: Int?,
@@ -38,11 +40,13 @@ class ActivityController(
         ResponseEntity.ok(activityService.getWeeklyActivity(SecurityUtils.currentUserId()))
 
     @GetMapping("/students/activities")
+    @ApiErrors(ErrorCode.NO_SEARCH_RESULT)
     @PreAuthorize("hasRole('TEACHER')")
     fun searchStudents(@RequestParam(required = false) keyword: String?): ResponseEntity<List<StudentActivityResponse>> =
         ResponseEntity.ok(activityService.searchStudents(keyword))
 
     @GetMapping("/students/{studentId}/activities")
+    @ApiErrors(ErrorCode.STUDENT_NOT_FOUND, ErrorCode.VALIDATION_ERROR)
     @PreAuthorize("hasRole('TEACHER')")
     fun getStudentActivity(
         @PathVariable studentId: Long,

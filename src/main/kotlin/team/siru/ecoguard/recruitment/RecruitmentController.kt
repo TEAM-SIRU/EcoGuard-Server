@@ -21,6 +21,8 @@ import team.siru.ecoguard.recruitment.dto.CreateRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.CurrentRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.RecruitmentSummaryResponse
 import team.siru.ecoguard.recruitment.dto.UpdateRecruitmentRequest
+import team.siru.ecoguard.common.exception.ApiErrors
+import team.siru.ecoguard.common.exception.ErrorCode
 
 @RestController
 @RequestMapping("/api/v1")
@@ -29,6 +31,7 @@ class RecruitmentController(
 ) {
 
     @PostMapping("/recruitments")
+    @ApiErrors(ErrorCode.INVALID_PERIOD, ErrorCode.INVALID_MAX_COUNT, ErrorCode.INVALID_ACTIVITY_TIME, ErrorCode.USER_NOT_FOUND, success = 201)
     @PreAuthorize("hasRole('TEACHER')")
     fun createRecruitment(@Valid @RequestBody request: CreateRecruitmentRequest): ResponseEntity<CreateRecruitmentResponse> {
         val response = recruitmentService.createRecruitment(SecurityUtils.currentUserId(), request)
@@ -36,6 +39,7 @@ class RecruitmentController(
     }
 
     @PatchMapping("/recruitments/{recruitmentId}")
+    @ApiErrors(ErrorCode.RECRUITMENT_NOT_FOUND, ErrorCode.RECRUITMENT_CLOSED, ErrorCode.INVALID_PERIOD, ErrorCode.INVALID_MAX_COUNT, ErrorCode.INVALID_ACTIVITY_TIME, ErrorCode.MAX_COUNT_BELOW_APPLICANTS)
     @PreAuthorize("hasRole('TEACHER')")
     fun updateRecruitment(
         @PathVariable recruitmentId: Long,
@@ -52,18 +56,21 @@ class RecruitmentController(
     }
 
     @GetMapping("/recruitments/current")
+    @ApiErrors(ErrorCode.NO_ACTIVE_RECRUITMENT, ErrorCode.USER_NOT_FOUND)
     @PreAuthorize("hasRole('STUDENT')")
     fun getCurrentRecruitment(): ResponseEntity<CurrentRecruitmentResponse> {
         return ResponseEntity.ok(recruitmentService.getCurrentRecruitment(SecurityUtils.currentUserId()))
     }
 
     @GetMapping("/recruitments/{recruitmentId}/applications")
+    @ApiErrors(ErrorCode.RECRUITMENT_NOT_FOUND)
     @PreAuthorize("hasRole('TEACHER')")
     fun getApplicants(@PathVariable recruitmentId: Long): ResponseEntity<List<ApplicantResponse>> {
         return ResponseEntity.ok(recruitmentService.getApplicants(recruitmentId))
     }
 
     @PostMapping("/recruitments/{recruitmentId}/applications")
+    @ApiErrors(ErrorCode.RECRUITMENT_NOT_FOUND, ErrorCode.CLASS_MISMATCH, ErrorCode.OUT_OF_PERIOD, ErrorCode.ALREADY_APPLIED, ErrorCode.RECRUITMENT_FULL, ErrorCode.USER_NOT_FOUND, success = 201)
     @PreAuthorize("hasRole('STUDENT')")
     fun apply(
         @PathVariable recruitmentId: Long,
@@ -74,6 +81,7 @@ class RecruitmentController(
     }
 
     @GetMapping("/applications/me")
+    @ApiErrors(ErrorCode.NO_APPLICATION)
     @PreAuthorize("hasRole('STUDENT')")
     fun getMyApplicationStatus(): ResponseEntity<ApplicationStatusResponse> {
         return ResponseEntity.ok(recruitmentService.getMyApplicationStatus(SecurityUtils.currentUserId()))

@@ -17,6 +17,8 @@ import team.siru.ecoguard.notice.dto.CreateNoticeResponse
 import team.siru.ecoguard.notice.dto.NoticeDetailResponse
 import team.siru.ecoguard.notice.dto.NoticeListItemResponse
 import team.siru.ecoguard.notice.dto.UpdateNoticeRequest
+import team.siru.ecoguard.common.exception.ApiErrors
+import team.siru.ecoguard.common.exception.ErrorCode
 
 @RestController
 @RequestMapping("/api/v1/notices")
@@ -25,6 +27,7 @@ class NoticeController(
 ) {
 
     @PostMapping
+    @ApiErrors(ErrorCode.TITLE_OR_CONTENT_EMPTY, ErrorCode.USER_NOT_FOUND, success = 201)
     @PreAuthorize("hasRole('TEACHER')")
     fun create(@RequestBody request: CreateNoticeRequest): ResponseEntity<CreateNoticeResponse> {
         val response = noticeService.create(SecurityUtils.currentUserId(), request)
@@ -32,6 +35,7 @@ class NoticeController(
     }
 
     @PatchMapping("/{noticeId}")
+    @ApiErrors(ErrorCode.TITLE_OR_CONTENT_EMPTY, ErrorCode.NOTICE_NOT_FOUND)
     @PreAuthorize("hasRole('TEACHER')")
     fun update(@PathVariable noticeId: Long, @RequestBody request: UpdateNoticeRequest): ResponseEntity<Void> {
         noticeService.update(noticeId, request)
@@ -39,6 +43,7 @@ class NoticeController(
     }
 
     @DeleteMapping("/{noticeId}")
+    @ApiErrors(ErrorCode.NOTICE_NOT_FOUND, success = 204)
     @PreAuthorize("hasRole('TEACHER')")
     fun delete(@PathVariable noticeId: Long): ResponseEntity<Void> {
         noticeService.delete(noticeId)
@@ -50,6 +55,7 @@ class NoticeController(
         ResponseEntity.ok(noticeService.getList(SecurityUtils.currentUserId()))
 
     @GetMapping("/{noticeId}")
+    @ApiErrors(ErrorCode.NOTICE_NOT_FOUND)
     fun getDetail(@PathVariable noticeId: Long): ResponseEntity<NoticeDetailResponse> =
         ResponseEntity.ok(noticeService.getDetail(SecurityUtils.currentUserId(), noticeId))
 }

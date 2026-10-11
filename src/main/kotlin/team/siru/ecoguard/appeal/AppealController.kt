@@ -23,6 +23,7 @@ import team.siru.ecoguard.appeal.dto.MyAppealResponse
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.security.SecurityUtils
+import team.siru.ecoguard.common.exception.ApiErrors
 
 @RestController
 @RequestMapping("/api/v1")
@@ -32,6 +33,7 @@ class AppealController(
 
     /** 사진 없이 내용만 보내는 요청 (JSON). */
     @PostMapping("/verifications/{verificationId}/appeals", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    @ApiErrors(ErrorCode.TOO_MANY_APPEAL_PHOTOS, ErrorCode.VERIFICATION_NOT_FOUND, ErrorCode.APPEAL_NOT_ALLOWED, ErrorCode.APPEAL_ALREADY_PENDING, ErrorCode.INVALID_IMAGE, ErrorCode.USER_NOT_FOUND, success = 201)
     @PreAuthorize("hasRole('STUDENT')")
     fun create(
         @PathVariable verificationId: Long,
@@ -43,6 +45,7 @@ class AppealController(
 
     /** 다시 찍은 사진(`photos`, 최대 3장)과 함께 보내는 요청 (multipart/form-data). */
     @PostMapping("/verifications/{verificationId}/appeals", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @ApiErrors(ErrorCode.VALIDATION_ERROR, ErrorCode.TOO_MANY_APPEAL_PHOTOS, ErrorCode.VERIFICATION_NOT_FOUND, ErrorCode.APPEAL_NOT_ALLOWED, ErrorCode.APPEAL_ALREADY_PENDING, ErrorCode.INVALID_IMAGE, ErrorCode.USER_NOT_FOUND, success = 201)
     @PreAuthorize("hasRole('STUDENT')")
     fun createWithPhotos(
         @PathVariable verificationId: Long,
@@ -62,6 +65,7 @@ class AppealController(
     }
 
     @PatchMapping("/appeals/{appealId}")
+    @ApiErrors(ErrorCode.INVALID_DECISION, ErrorCode.APPEAL_NOT_FOUND, ErrorCode.ALREADY_PROCESSED)
     @PreAuthorize("hasRole('TEACHER')")
     fun decide(@PathVariable appealId: Long, @Valid @RequestBody request: AppealDecisionRequest): ResponseEntity<Void> {
         appealService.decide(appealId, request.decision, request.reply, request.replyTitle)
