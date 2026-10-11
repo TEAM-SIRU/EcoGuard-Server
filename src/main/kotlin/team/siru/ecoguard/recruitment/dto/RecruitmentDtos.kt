@@ -1,5 +1,6 @@
 package team.siru.ecoguard.recruitment.dto
 
+import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import team.siru.ecoguard.recruitment.ApplicationStatus
@@ -48,6 +49,8 @@ data class ApplyRequest(
 
 data class ApplyResponse(
     val applicationId: Long,
+    /** 신청은 선착순으로 즉시 확정되어 보통 APPROVED 이다. */
+    @field:Schema(example = "APPROVED")
     val status: ApplicationStatus,
     /** 신청 순서 (N번째) */
     val order: Long,
@@ -59,6 +62,8 @@ data class ApplyResponse(
 data class ApplicationStatusResponse(
     /** 이 신청이 속한 모집 공고 (학기 구분용) */
     val recruitmentId: Long,
+    /** 신청은 선착순으로 즉시 확정되어 보통 APPROVED 이다. */
+    @field:Schema(example = "APPROVED")
     val status: ApplicationStatus,
     /** 신청 순서 (N번째) */
     val order: Long,
@@ -145,6 +150,8 @@ data class ApplicantResponse(
     val studentNumber: String?,
     val name: String,
     val motivation: String,
+    /** 신청은 선착순으로 즉시 확정되어 보통 APPROVED 이다. */
+    @field:Schema(example = "APPROVED")
     val status: ApplicationStatus,
     val appliedAt: LocalDateTime,
 ) {

@@ -25,5 +25,6 @@ swagger:
 springdoc:
   api-docs:
     enabled: ${swagger.enabled}
+  default-produces-media-type: application/json
   swagger-ui:
     enabled: ${swagger.enabled}
