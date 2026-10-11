@@ -1,7 +1,7 @@
 package team.siru.ecoguard
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -52,7 +52,7 @@ class OpenApiDisabledByDefaultTests @Autowired constructor(
     fun `api docs are not served unless SWAGGER_ENABLED is on`() {
         val response = mockMvc.get("/v3/api-docs").andReturn().response
 
-        assertNotEquals(200, response.status)
+        assertEquals(404, response.status)
         assertFalse(response.contentAsString.contains("openapi"))
     }
 }

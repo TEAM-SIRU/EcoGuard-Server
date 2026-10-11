@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.support.MissingServletRequestPartException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
@@ -64,6 +65,12 @@ class GlobalExceptionHandler {
     fun handleAccessDeniedException(e: AccessDeniedException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.status)
             .body(ErrorResponse(ErrorCode.FORBIDDEN.name, ErrorCode.FORBIDDEN.defaultMessage))
+    }
+
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResource(e: NoResourceFoundException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.status)
+            .body(ErrorResponse(ErrorCode.NOT_FOUND.name, ErrorCode.NOT_FOUND.defaultMessage))
     }
 
     @ExceptionHandler(Exception::class)
