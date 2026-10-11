@@ -17,3 +17,10 @@ gsm:
 
 ai-server:
   base-url: http://localhost:19999
+
+# 운영 설정(application.yaml)과 같게, 명세 문서는 기본으로 끈다.
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
