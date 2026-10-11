@@ -25,11 +25,17 @@ server:
   port: ${SERVER_PORT:8080}
 
 # API 명세(OpenAPI)와 Swagger UI. 운영에서는 기본으로 꺼 두고, 필요할 때만 SWAGGER_ENABLED=true 로 켠다.
+# 켜면 SWAGGER_USERNAME / SWAGGER_PASSWORD(12자 이상)로만 볼 수 있고, 둘 중 하나라도 없으면 서버가 시작하지 않는다.
+swagger:
+  enabled: ${SWAGGER_ENABLED:false}
+  username: ${SWAGGER_USERNAME:}
+  password: ${SWAGGER_PASSWORD:}
+
 springdoc:
   api-docs:
-    enabled: ${SWAGGER_ENABLED:false}
+    enabled: ${swagger.enabled}
   swagger-ui:
-    enabled: ${SWAGGER_ENABLED:false}
+    enabled: ${swagger.enabled}
     path: /swagger-ui.html
     operations-sorter: method
 

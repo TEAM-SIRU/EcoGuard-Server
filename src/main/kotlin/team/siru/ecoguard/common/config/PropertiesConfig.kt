@@ -25,5 +25,6 @@ import team.siru.ecoguard.verification.VerificationProperties
     CleaningAreaSeedProperties::class,
     NeisProperties::class,
     VerificationProperties::class,
+    SwaggerProperties::class,
 )
 class PropertiesConfig

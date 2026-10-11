@@ -36,7 +36,6 @@ class SecurityConfig(
                 it.requestMatchers("/api/v1/auth/login").permitAll()
                 it.requestMatchers("/api/v1/auth/refresh").permitAll()
                 it.requestMatchers("/files/**").permitAll()
-                it.requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                 it.anyRequest().authenticated()
             }
             .addFilterBefore(JwtAuthenticationFilter(jwtTokenProvider, tokenRevocationChecker), UsernamePasswordAuthenticationFilter::class.java)
