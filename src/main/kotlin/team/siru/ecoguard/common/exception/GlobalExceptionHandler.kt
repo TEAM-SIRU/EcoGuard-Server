@@ -9,6 +9,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.HttpMediaTypeNotSupportedException
+import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.support.MissingServletRequestPartException
@@ -65,6 +67,20 @@ class GlobalExceptionHandler {
     fun handleAccessDeniedException(e: AccessDeniedException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.status)
             .body(ErrorResponse(ErrorCode.FORBIDDEN.name, ErrorCode.FORBIDDEN.defaultMessage))
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun handleMethodNotSupported(e: HttpRequestMethodNotSupportedException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.status)
+            .headers(e.headers)
+            .body(ErrorResponse(ErrorCode.METHOD_NOT_ALLOWED.name, ErrorCode.METHOD_NOT_ALLOWED.defaultMessage))
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException::class)
+    fun handleMediaTypeNotSupported(e: HttpMediaTypeNotSupportedException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(ErrorCode.UNSUPPORTED_MEDIA_TYPE.status)
+            .headers(e.headers)
+            .body(ErrorResponse(ErrorCode.UNSUPPORTED_MEDIA_TYPE.name, ErrorCode.UNSUPPORTED_MEDIA_TYPE.defaultMessage))
     }
 
     @ExceptionHandler(NoResourceFoundException::class)
