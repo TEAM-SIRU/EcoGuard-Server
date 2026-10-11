@@ -24,6 +24,15 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+# API 명세(OpenAPI)와 Swagger UI. 운영에서는 기본으로 꺼 두고, 필요할 때만 SWAGGER_ENABLED=true 로 켠다.
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+    path: /swagger-ui.html
+    operations-sorter: method
+
 jwt:
   # 필수 환경변수(32바이트 이상). 기본값을 두지 않는다.
   secret: ${JWT_SECRET}

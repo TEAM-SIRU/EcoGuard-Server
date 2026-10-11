@@ -98,6 +98,8 @@ AI 검수를 통해 인증하기 어려운 경우 교사가 직접 확인할 수
 
 모든 API는 `/api/v1` 하위에 있으며, 로그인을 제외하고 `Authorization: Bearer {accessToken}` 헤더가 필요합니다.
 
+요청·응답 필드는 코드에서 자동으로 만들어지는 OpenAPI 명세가 기준입니다. 서버를 `SWAGGER_ENABLED=true`로 실행하면 `/swagger-ui.html`(화면)과 `/v3/api-docs`(JSON)에서 볼 수 있습니다. 운영에서는 기본으로 꺼져 있습니다. 아래 표는 개요이며, 필드가 다르면 Swagger를 따릅니다.
+
 ### Auth
 
 | Method | Endpoint       | Role | Description |
@@ -303,6 +305,7 @@ AI_SERVER_BASE_URL=http://localhost:9000       # ai-server일 때만 사용, 자
 FILE_STORAGE_PATH=uploads                      # 선택, 인증 사진 저장 경로 (/files 로 공개)
 SERVER_PORT=8080                               # 선택
 CORS_ALLOWED_ORIGINS=https://your-web-domain   # 쉼표로 구분, 기본은 localhost
+SWAGGER_ENABLED=false                           # true면 /swagger-ui.html, /v3/api-docs 공개 (기본 false)
 DDL_AUTO=validate                              # 기본 validate. 빈 DB 최초 1회만 update
 
 # 앱 스토어 심사용 데모 학생 계정 (심사 기간에만 켠다)
