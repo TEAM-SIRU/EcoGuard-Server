@@ -92,6 +92,20 @@ class OpenApiDocsTests @Autowired constructor(
         assertTrue(apply.at("/403/description").asText().contains("FORBIDDEN"), apply.toString())
         assertTrue(apply.at("/400/description").asText().contains("VALIDATION_ERROR"), apply.toString())
     }
+
+    @Test
+    fun `descriptions and examples match what the server really returns`() {
+        val body = docs().contentAsString
+        val root = objectMapper.readTree(body)
+        val apply = root.at("/paths/~1api~1v1~1recruitments~1{recruitmentId}~1applications/post/responses")
+        val applyResponse = root.at("/components/schemas/ApplyResponse/properties")
+
+        assertEquals("생성 성공", apply.at("/201/description").asString())
+        assertTrue(apply.at("/201/content").has("application/json"), apply.toString())
+        assertFalse(body.contains("\"*/*\""), "응답 형식이 */* 로 표시됩니다")
+        assertEquals("APPROVED", applyResponse.at("/status/example").asString())
+        assertEquals("2026-10-07T07:30:00", applyResponse.at("/appliedAt/example").asString())
+    }
 }
 
 @SpringBootTest

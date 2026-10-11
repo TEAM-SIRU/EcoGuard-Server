@@ -11,6 +11,11 @@ import org.springframework.web.method.HandlerMethod
 import team.siru.ecoguard.common.exception.ApiErrors
 import team.siru.ecoguard.common.exception.ErrorCode
 
+private const val DEFAULT_SUCCESS_DESCRIPTION = "OK"
+
+/** 성공 응답의 기본 설명(OK) 대신 보여 줄 한글 설명. 여기 없는 상태 코드는 "성공"으로 표시한다. */
+private val SUCCESS_DESCRIPTIONS = mapOf("200" to "성공", "201" to "생성 성공", "204" to "삭제 성공")
+
 /** [ApiErrors]에 적힌 에러 코드를 상태 코드별로 묶어 Swagger 응답 목록에 넣는다. */
 @Component
 class ApiErrorsCustomizer : OperationCustomizer {
@@ -30,6 +35,12 @@ class ApiErrorsCustomizer : OperationCustomizer {
         if (annotation != null && annotation.success != 0 && annotation.success != 200) {
             val ok = responses.remove("200")
             responses.addApiResponse(annotation.success.toString(), ok ?: ApiResponse().description("OK"))
+        }
+
+        responses.forEach { (key, response) ->
+            if (response.description == DEFAULT_SUCCESS_DESCRIPTION) {
+                response.description = SUCCESS_DESCRIPTIONS[key] ?: "성공"
+            }
         }
 
         codes.groupBy { it.status.value() }
