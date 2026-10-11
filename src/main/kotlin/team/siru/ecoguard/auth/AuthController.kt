@@ -17,6 +17,8 @@ import team.siru.ecoguard.common.security.SecurityUtils
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import team.siru.ecoguard.common.exception.ApiErrors
+import team.siru.ecoguard.common.exception.ErrorCode
 
 private const val APP_CALLBACK_URI = "ecoguard://auth/callback"
 
@@ -48,12 +50,14 @@ class AuthController(
         URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20")
 
     @PostMapping("/login")
+    @ApiErrors(ErrorCode.OAUTH_FAILED)
     fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<LoginResponse> {
         return ResponseEntity.ok(authService.login(request.authCode))
     }
 
     /** 리프레시 토큰으로 새 토큰 쌍을 발급한다. 쓸 때마다 갱신되므로 계속 사용하는 동안 로그인이 유지된다. */
     @PostMapping("/refresh")
+    @ApiErrors(ErrorCode.UNAUTHORIZED)
     fun refresh(@Valid @RequestBody request: RefreshRequest): ResponseEntity<TokenResponse> {
         return ResponseEntity.ok(authService.refresh(request.refreshToken))
     }
