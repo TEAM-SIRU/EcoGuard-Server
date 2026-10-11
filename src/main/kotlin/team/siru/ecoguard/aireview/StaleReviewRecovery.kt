@@ -26,13 +26,15 @@ class StaleReviewRecovery(
     @Transactional
     fun recover() {
         val threshold = LocalDateTime.now(clock).minus(STALE_AFTER)
-        val stale = verificationRepository.findByStatusAndCreatedAtBefore(VerificationStatus.PROCESSING, threshold)
-        stale.forEach {
-            it.status = VerificationStatus.MANUAL_REVIEW
-            it.manualReviewReason = ManualReviewReason.TIMEOUT.name
-        }
-        if (stale.isNotEmpty()) {
-            log.warn("검수가 끝나지 않은 인증 {}건을 수동 검토로 전환했습니다: {}", stale.size, stale.map { it.id })
+        val ids = verificationRepository.findByStatusAndCreatedAtBefore(VerificationStatus.PROCESSING, threshold).map { it.id }
+        if (ids.isEmpty()) return
+        // 엔티티를 고쳐 저장하면 그 사이 AI 검수가 승인한 건을 덮어쓸 수 있으므로, 아직 PROCESSING 인 건만 조건부로 바꾼다.
+        val updated = verificationRepository.transitionStatus(
+            ids, VerificationStatus.PROCESSING, VerificationStatus.MANUAL_REVIEW, ManualReviewReason.TIMEOUT.name,
+            LocalDateTime.now(clock),
+        )
+        if (updated > 0) {
+            log.warn("검수가 끝나지 않은 인증 {}건을 수동 검토로 전환했습니다: {}", updated, ids)
         }
     }
 
