@@ -289,6 +289,7 @@ GSM_OAUTH_MOCK=false                           # 기본 false. 로컬 개발에�
 GSM_OAUTH_CLIENT_ID=                           # mock=false일 때 필수 (datagsm.kr/clients에서 발급)
 GSM_OAUTH_CLIENT_SECRET=                       # mock=false일 때 필수
 GSM_OAUTH_REDIRECT_URI=                        # mock=false일 때 필수. 서버 callback 주소(https://<서버>/api/v1/auth/callback). dataGSM 등록값·앱 인가 요청값과 정확히 일치해야 함
+GSM_OAUTH_ALLOWED_REDIRECT_URIS=               # 선택. 웹 등 추가 redirect_uri(쉼표 구분). dataGSM에도 같은 값을 등록. 로그인 요청의 redirectUri로 보낼 수 있음
 
 AI_REVIEW_PROVIDER=gemini                      # 선택, gemini(기본) 또는 ai-server
 GEMINI_API_KEY=                                # gemini일 때 필요. 비어 있으면 모두 수동 검토

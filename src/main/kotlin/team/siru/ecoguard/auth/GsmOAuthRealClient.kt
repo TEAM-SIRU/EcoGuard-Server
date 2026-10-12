@@ -34,18 +34,27 @@ class GsmOAuthRealClient(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun authenticate(authCode: String): GsmUserInfo {
-        val token = exchangeToken(authCode)
+    override fun authenticate(authCode: String, redirectUri: String?): GsmUserInfo {
+        val token = exchangeToken(authCode, resolveRedirectUri(redirectUri))
         val account = fetchAccountInfo(token.accessToken)
         return toGsmUserInfo(account)
     }
 
-    private fun exchangeToken(authCode: String): GsmTokenResponse {
+    /** 요청이 보낸 redirectUri는 서버 기본 주소나 허용 목록에 있을 때만 쓴다. 임의 주소로 토큰 교환을 시도하지 못하게 한다. */
+    private fun resolveRedirectUri(requested: String?): String {
+        if (requested.isNullOrBlank()) return properties.redirectUri
+        if (requested != properties.redirectUri && requested !in properties.allowedRedirectUris) {
+            throw BusinessException(ErrorCode.OAUTH_FAILED, "허용되지 않은 redirectUri 입니다.")
+        }
+        return requested
+    }
+
+    private fun exchangeToken(authCode: String, redirectUri: String): GsmTokenResponse {
         val request = GsmTokenRequest(
             clientId = properties.clientId,
             clientSecret = properties.clientSecret,
             code = authCode,
-            redirectUri = properties.redirectUri,
+            redirectUri = redirectUri,
         )
         return try {
             gsmAuthorizationRestClient.post()

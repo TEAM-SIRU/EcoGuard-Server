@@ -21,7 +21,7 @@ import team.siru.ecoguard.user.Role
 @ConditionalOnProperty(prefix = "gsm.oauth", name = ["mock"], havingValue = "true")
 class GsmOAuthMockClient : GsmOAuthClient {
 
-    override fun authenticate(authCode: String): GsmUserInfo {
+    override fun authenticate(authCode: String, redirectUri: String?): GsmUserInfo {
         if (authCode.isBlank()) {
             throw BusinessException(ErrorCode.OAUTH_FAILED)
         }

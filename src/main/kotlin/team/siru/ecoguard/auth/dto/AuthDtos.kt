@@ -7,6 +7,8 @@ import team.siru.ecoguard.user.User
 data class LoginRequest(
     @field:NotBlank
     val authCode: String,
+    /** 인가 요청 때 쓴 redirect_uri. 웹처럼 서버 기본 주소가 아닌 곳에서 로그인할 때만 보낸다(서버 허용 목록에 있어야 함). */
+    val redirectUri: String? = null,
 )
 
 data class RefreshRequest(
