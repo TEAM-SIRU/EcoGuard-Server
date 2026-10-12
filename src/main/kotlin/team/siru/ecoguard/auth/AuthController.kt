@@ -52,7 +52,7 @@ class AuthController(
     @PostMapping("/login")
     @ApiErrors(ErrorCode.OAUTH_FAILED)
     fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<LoginResponse> {
-        return ResponseEntity.ok(authService.login(request.authCode))
+        return ResponseEntity.ok(authService.login(request.authCode, request.redirectUri))
     }
 
     /** 리프레시 토큰으로 새 토큰 쌍을 발급한다. 쓸 때마다 갱신되므로 계속 사용하는 동안 로그인이 유지된다. */

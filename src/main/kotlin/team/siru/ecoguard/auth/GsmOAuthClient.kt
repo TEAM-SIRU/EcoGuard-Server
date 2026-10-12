@@ -8,5 +8,6 @@ package team.siru.ecoguard.auth
  * 기본적으로는 [GsmOAuthMockClient]가 동작하여 로컬 개발/테스트가 가능하다.
  */
 interface GsmOAuthClient {
-    fun authenticate(authCode: String): GsmUserInfo
+    /** [redirectUri]는 인가 요청 때 쓴 주소. null이면 서버 기본 주소(`gsm.oauth.redirect-uri`)를 쓴다. */
+    fun authenticate(authCode: String, redirectUri: String? = null): GsmUserInfo
 }
