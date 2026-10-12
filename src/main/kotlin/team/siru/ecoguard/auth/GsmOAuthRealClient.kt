@@ -4,6 +4,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClient
 import team.siru.ecoguard.auth.dto.GsmAccountInfoResponse
 import team.siru.ecoguard.auth.dto.GsmTokenRequest
@@ -66,6 +67,9 @@ class GsmOAuthRealClient(
                 ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
         } catch (e: BusinessException) {
             throw e
+        } catch (e: HttpClientErrorException.Forbidden) {
+            log.warn("dataGSM 토큰 교환 거부(403)", e)
+            throw BusinessException(ErrorCode.OAUTH_FAILED, FORBIDDEN_MESSAGE)
         } catch (e: Exception) {
             log.warn("dataGSM 토큰 교환 실패", e)
             throw BusinessException(ErrorCode.OAUTH_FAILED)
@@ -82,6 +86,9 @@ class GsmOAuthRealClient(
                 ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
         } catch (e: BusinessException) {
             throw e
+        } catch (e: HttpClientErrorException.Forbidden) {
+            log.warn("dataGSM 사용자 정보 조회 거부(403)", e)
+            throw BusinessException(ErrorCode.OAUTH_FAILED, FORBIDDEN_MESSAGE)
         } catch (e: Exception) {
             log.warn("dataGSM 사용자 정보 조회 실패", e)
             throw BusinessException(ErrorCode.OAUTH_FAILED)
@@ -119,5 +126,10 @@ class GsmOAuthRealClient(
                 )
             }
         }
+    }
+
+    private companion object {
+        /** dataGSM은 어드민 승인 전(PENDING) 선생님 계정에 403을 준다. 다른 사유의 403일 수도 있어 단정하지 않는다. */
+        const val FORBIDDEN_MESSAGE = "dataGSM에서 접근을 거부했습니다. 선생님 계정이라면 관리자 승인 대기 중일 수 있습니다."
     }
 }
