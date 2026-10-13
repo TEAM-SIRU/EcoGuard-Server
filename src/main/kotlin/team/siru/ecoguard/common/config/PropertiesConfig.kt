@@ -7,6 +7,7 @@ import team.siru.ecoguard.aireview.AiServerProperties
 import team.siru.ecoguard.aireview.GeminiProperties
 import team.siru.ecoguard.auth.DemoAccountProperties
 import team.siru.ecoguard.auth.GsmOAuthProperties
+import team.siru.ecoguard.auth.TeacherEmailProperties
 import team.siru.ecoguard.cleaningarea.CleaningAreaSeedProperties
 import team.siru.ecoguard.common.security.JwtProperties
 import team.siru.ecoguard.common.storage.FileStorageProperties
@@ -22,6 +23,7 @@ import team.siru.ecoguard.verification.VerificationProperties
     GeminiProperties::class,
     AiReviewQueueProperties::class,
     DemoAccountProperties::class,
+    TeacherEmailProperties::class,
     CleaningAreaSeedProperties::class,
     NeisProperties::class,
     VerificationProperties::class,

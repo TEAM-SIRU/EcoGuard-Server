@@ -18,6 +18,7 @@ import team.siru.ecoguard.user.UserRepository
 class AuthService(
     private val gsmOAuthClient: GsmOAuthClient,
     private val demoAccountAuthenticator: DemoAccountAuthenticator,
+    private val teacherEmailPromoter: TeacherEmailPromoter,
     private val userRepository: UserRepository,
     private val jwtTokenProvider: JwtTokenProvider,
     private val tokenRevocationChecker: TokenRevocationChecker,
@@ -26,7 +27,8 @@ class AuthService(
 
     fun login(authCode: String, redirectUri: String? = null): LoginResponse {
         // 외부 OAuth 호출은 트랜잭션(DB 커넥션) 밖에서 한다.
-        val userInfo = demoAccountAuthenticator.authenticate(authCode) ?: gsmOAuthClient.authenticate(authCode, redirectUri)
+        val userInfo = demoAccountAuthenticator.authenticate(authCode)
+            ?: teacherEmailPromoter.promote(gsmOAuthClient.authenticate(authCode, redirectUri))
 
         // 같은 계정의 첫 로그인 요청이 동시에 오면 둘 다 새로 가입하려다 유니크 제약에 걸린다. 한 번 더 시도하면 이미 가입된 사용자를 찾는다.
         val user = try {
