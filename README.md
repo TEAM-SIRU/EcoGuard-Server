@@ -314,11 +314,16 @@ DDL_AUTO=validate                              # 기본 validate. 빈 DB 최초 
 # 앱 스토어 심사용 데모 학생 계정 (심사 기간에만 켠다)
 DEMO_ACCOUNT_ENABLED=false                     # 기본 false
 DEMO_ACCOUNT_AUTH_CODE=                        # 켤 때 필수, 16자 이상의 추측 불가능한 값
+
+# 선생님 웹 화면을 쓰는 팀원
+TEACHER_EMAILS=                                # 선택, 쉼표로 구분한 이메일. 기본은 빈 목록
 ```
 
 `GSM_OAUTH_MOCK=true`는 인가 코드 문자열만으로 교사 계정 포함 누구로든 로그인되므로 운영에서 절대 켜지 않습니다.
 
 심사용 데모 계정을 켜면 `DEMO_ACCOUNT_AUTH_CODE` 값을 `authCode`로 로그인했을 때 고정된 데모 학생 계정(역할 `STUDENT`)으로 들어옵니다. 교사 권한은 부여되지 않으며, 심사가 끝나면 `DEMO_ACCOUNT_ENABLED=false`로 되돌립니다.
+
+`TEACHER_EMAILS`에 적은 이메일(대소문자 무시)로 dataGSM 로그인하면 학생 계정이어도 교사 권한(`TEACHER`)으로 들어옵니다. 로그인할 때마다 다시 판단하므로 목록에서 빼면 다음 로그인부터 원래 역할로 돌아가고, 이미 발급된 토큰은 액세스 토큰 만료(또는 로그아웃) 전까지 유지됩니다. 데모 계정에는 적용되지 않습니다.
 
 실제 인증 정보 및 비밀키는 저장소에 포함하지 않습니다.
 

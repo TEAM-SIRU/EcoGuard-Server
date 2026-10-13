@@ -66,6 +66,10 @@ demo-account:
   enabled: ${DEMO_ACCOUNT_ENABLED:false}
   auth-code: ${DEMO_ACCOUNT_AUTH_CODE:}
 
+# 선생님 웹 화면을 쓰는 팀원 이메일(쉼표 구분). 이 이메일로 dataGSM 로그인하면 교사 권한을 받는다. 기본은 빈 목록.
+teacher-emails:
+  emails: ${TEACHER_EMAILS:}
+
 cors:
   # 쉼표로 구분한 허용 Origin 목록
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
