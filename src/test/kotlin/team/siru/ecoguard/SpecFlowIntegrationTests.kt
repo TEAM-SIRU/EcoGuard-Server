@@ -115,6 +115,36 @@ class SpecFlowIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `teacher can delete a recruitment only while it has no applicants`() {
+        val teacher = login("TEACHER|9201|t@test.local|Teacher|||")
+        val student = login("STUDENT|9202|s1@test.local|S1|1101|1|1")
+        fun create(classNo: Int) = post(teacher, "/api/v1/recruitments", """
+            {"semester":"2026-2","grade":1,"classNo":$classNo,"maxCount":2,
+             "startDate":"${LocalDateTime.now().minusDays(1)}","endDate":"${LocalDateTime.now().plusDays(1)}"}
+        """).get("recruitmentId").asLong()
+        val withApplicant = create(1)
+        val empty = create(2)
+
+        mockMvc.post("/api/v1/recruitments/$withApplicant/applications") {
+            bearer(student); json("""{"motivation":"x"}""")
+        }.andExpect { status { isCreated() } }
+
+        mockMvc.delete("/api/v1/recruitments/$empty") { bearer(student) }
+            .andExpect { status { isForbidden() } }
+
+        mockMvc.delete("/api/v1/recruitments/$withApplicant") { bearer(teacher) }
+            .andExpect { status { isConflict() }; jsonPath("$.code") { value("RECRUITMENT_HAS_APPLICANTS") } }
+        assertEquals(true, recruitmentRepository.existsById(withApplicant))
+
+        mockMvc.delete("/api/v1/recruitments/$empty") { bearer(teacher) }
+            .andExpect { status { isNoContent() } }
+        assertEquals(false, recruitmentRepository.existsById(empty))
+
+        mockMvc.delete("/api/v1/recruitments/$empty") { bearer(teacher) }
+            .andExpect { status { isNotFound() }; jsonPath("$.code") { value("RECRUITMENT_NOT_FOUND") } }
+    }
+
+    @Test
     fun `teacher can unassign a student from an area`() {
         val teacher = login("TEACHER|9301|t@test.local|Teacher|||")
         val s1 = login("STUDENT|9302|s1@test.local|S1|1101|1|1")

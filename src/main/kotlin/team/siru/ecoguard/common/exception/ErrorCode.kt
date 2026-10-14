@@ -28,6 +28,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     RECRUITMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "모집 공고를 찾을 수 없습니다."),
     RECRUITMENT_CLOSED(HttpStatus.CONFLICT, "이미 종료된 모집입니다."),
     CLASS_MISMATCH(HttpStatus.FORBIDDEN, "본인 학년/반의 모집에만 신청할 수 있습니다."),
+    RECRUITMENT_HAS_APPLICANTS(HttpStatus.CONFLICT, "신청자가 있는 모집 공고는 삭제할 수 없습니다."),
     MAX_COUNT_BELOW_APPLICANTS(HttpStatus.CONFLICT, "모집 인원을 현재 신청 인원보다 적게 설정할 수 없습니다."),
 
     // cleaning-areas
