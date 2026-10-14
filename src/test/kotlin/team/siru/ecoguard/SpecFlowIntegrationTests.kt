@@ -142,6 +142,40 @@ class SpecFlowIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `teacher reject reason is stored and shown to the student`() {
+        val teacher = login("TEACHER|9401|t@test.local|Teacher|||")
+        val s1 = login("STUDENT|9402|s1@test.local|S1|1101|1|1")
+        val student1 = userRepository.findByGsmAccountId(9402)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_R", name = "Reject hall"))
+        fun manual(day: Long) = verificationRepository.save(
+            Verification(student = student1, area = area, photoUrl = "/files/r$day.jpg", verificationDate = LocalDate.now().minusDays(day))
+                .apply { status = VerificationStatus.MANUAL_REVIEW },
+        )
+
+        val withReason = manual(1)
+        mockMvc.patch("/api/v1/verifications/${withReason.id}/review") {
+            bearer(teacher); json("""{"decision":"REJECTED","reason":"  청소 전 사진 같아요  "}""")
+        }.andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/verifications/${withReason.id}/review") { bearer(s1) }.andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("REJECTED") }
+            jsonPath("$.failReasons[0]") { value("청소 전 사진 같아요") }
+            jsonPath("$.failReasons.length()") { value(1) }
+        }
+
+        val tooLong = manual(2)
+        mockMvc.patch("/api/v1/verifications/${tooLong.id}/review") {
+            bearer(teacher); json("""{"decision":"REJECTED","reason":"${"가".repeat(201)}"}""")
+        }.andExpect { status { isBadRequest() }; jsonPath("$.code") { value("VALIDATION_ERROR") } }
+
+        val noReason = manual(3)
+        mockMvc.patch("/api/v1/verifications/${noReason.id}/review") { bearer(teacher); json("""{"decision":"REJECTED"}""") }
+            .andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/verifications/${noReason.id}/review") { bearer(s1) }
+            .andExpect { status { isOk() }; jsonPath("$.status") { value("REJECTED") }; jsonPath("$.failReasons.length()") { value(0) } }
+    }
+
+    @Test
     fun `assignment exposes co-assigned students and appeal only works on own rejected verification`() {
         val teacher = login("TEACHER|9201|t@test.local|Teacher|||")
         val s1 = login("STUDENT|9202|s1@test.local|S1|1101|1|1")

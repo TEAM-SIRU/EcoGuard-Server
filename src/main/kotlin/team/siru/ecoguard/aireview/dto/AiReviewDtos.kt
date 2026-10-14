@@ -1,6 +1,7 @@
 package team.siru.ecoguard.aireview.dto
 
 import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Size
 import team.siru.ecoguard.verification.Verification
 import team.siru.ecoguard.verification.VerificationStatus
 import java.time.LocalDateTime
@@ -13,6 +14,9 @@ enum class ManualDecision {
 data class ManualReviewDecisionRequest(
     @field:NotNull
     val decision: ManualDecision,
+    /** 반려할 때 학생에게 보여줄 사유(선택). 승인이면 무시한다. 있으면 AI 가 지적한 사유 대신 이 값이 학생에게 보인다. */
+    @field:Size(max = 200)
+    val reason: String? = null,
 )
 
 data class ManualReviewItemResponse(
