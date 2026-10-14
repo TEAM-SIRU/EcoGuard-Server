@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
@@ -111,6 +112,33 @@ class SpecFlowIntegrationTests @Autowired constructor(
             json("""{"semester":"2026-2","grade":1,"classNo":3,"maxCount":7,
                 "startDate":"${LocalDateTime.now()}","endDate":"${LocalDateTime.now().plusDays(1)}"}""")
         }.andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_MAX_COUNT") } }
+    }
+
+    @Test
+    fun `teacher can unassign a student from an area`() {
+        val teacher = login("TEACHER|9301|t@test.local|Teacher|||")
+        val s1 = login("STUDENT|9302|s1@test.local|S1|1101|1|1")
+        val s2 = login("STUDENT|9303|s2@test.local|S2|1102|1|1")
+        val student1 = userRepository.findByGsmAccountId(9302)!!
+        val student2 = userRepository.findByGsmAccountId(9303)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_U", name = "Unassign hall"))
+        mockMvc.patch("/api/v1/cleaning-areas/${area.id}") { bearer(teacher); json("""{"isActive":true}""") }
+            .andExpect { status { isOk() } }
+        mockMvc.post("/api/v1/cleaning-areas/${area.id}/assignments") {
+            bearer(teacher); json("""{"studentIds":[${student1.id},${student2.id}]}""")
+        }.andExpect { status { isCreated() } }
+
+        mockMvc.delete("/api/v1/cleaning-areas/${area.id}/assignments/${student1.id}") { bearer(s1) }
+            .andExpect { status { isForbidden() } }
+        mockMvc.delete("/api/v1/cleaning-areas/${area.id}/assignments/${student1.id}") { bearer(teacher) }
+            .andExpect { status { isNoContent() } }
+
+        mockMvc.get("/api/v1/assignments/me") { bearer(s1) }
+            .andExpect { status { isNotFound() }; jsonPath("$.code") { value("NO_ASSIGNMENT") } }
+        mockMvc.get("/api/v1/assignments/me") { bearer(s2) }
+            .andExpect { status { isOk() }; jsonPath("$.members.length()") { value(1) } }
+        mockMvc.delete("/api/v1/cleaning-areas/${area.id}/assignments/${student1.id}") { bearer(teacher) }
+            .andExpect { status { isNotFound() }; jsonPath("$.code") { value("ASSIGNMENT_NOT_FOUND") } }
     }
 
     @Test
