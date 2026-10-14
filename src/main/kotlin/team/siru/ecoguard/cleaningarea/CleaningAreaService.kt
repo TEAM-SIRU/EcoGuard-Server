@@ -53,6 +53,14 @@ class CleaningAreaService(
         return assignments.map(AssignmentResponse::from)
     }
 
+    /** 잘못 배정한 학생을 구역에서 뺀다. 그 구역에 배정돼 있지 않으면 ASSIGNMENT_NOT_FOUND. */
+    @Transactional
+    fun unassignStudent(areaId: Long, studentId: Long) {
+        val assignment = assignmentRepository.findByAreaIdAndStudentId(areaId, studentId)
+            ?: throw BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND)
+        assignmentRepository.delete(assignment)
+    }
+
     @Transactional(readOnly = true)
     fun getMyAssignment(studentId: Long): MyAssignmentResponse {
         val assignment = assignmentRepository.findFirstByStudentIdOrderByCreatedAtDesc(studentId)

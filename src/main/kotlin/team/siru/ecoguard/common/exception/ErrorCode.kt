@@ -35,6 +35,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     STUDENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 학생입니다."),
     NO_ASSIGNMENT(HttpStatus.NOT_FOUND, "배정된 구역이 없습니다."),
     AREA_NOT_FOUND(HttpStatus.NOT_FOUND, "구역 정보를 찾을 수 없습니다."),
+    ASSIGNMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 구역에 배정된 학생이 아닙니다."),
     ZONE_MODEL_NOT_READY(HttpStatus.CONFLICT, "AI 모델이 준비되지 않은 구역은 활성화할 수 없습니다."),
 
     // verifications
