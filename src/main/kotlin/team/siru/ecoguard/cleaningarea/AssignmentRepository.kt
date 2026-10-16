@@ -19,6 +19,9 @@ interface AssignmentRepository : JpaRepository<Assignment, Long> {
     fun findByAreaIdOrderByCreatedAtAsc(areaId: Long): List<Assignment>
     fun findByStudentId(studentId: Long): List<Assignment>
     fun findByAreaIdAndStudentId(areaId: Long, studentId: Long): Assignment?
+    @Query("select count(distinct a.student.id) from Assignment a")
+    fun countAssignedStudents(): Long
+
     fun existsByStudentId(studentId: Long): Boolean
     fun deleteByStudentId(studentId: Long)
 }
