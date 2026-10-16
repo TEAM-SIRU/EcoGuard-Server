@@ -26,8 +26,9 @@ class CleaningAreaService(
     }
 
     /**
-     * 활성 구역에 학생을 배정한다. 한 구역에 여러 명을 배정할 수 있고,
-     * 학생은 한 구역만 담당하므로 다른 구역에 배정돼 있던 학생은 이 구역으로 옮겨진다.
+     * 활성 구역에 학생을 배정한다. 한 구역에 여러 명을 배정할 수 있지만 학생은 한 구역만 맡을 수 있다.
+     * 요청에 이미 다른 구역에 배정된 학생이 있으면 아무도 배정하지 않고 ALREADY_ASSIGNED로 거절한다.
+     * 같은 구역에 이미 배정된 학생은 그대로 둔다.
      */
     @Transactional
     fun assignStudents(areaId: Long, request: AssignStudentsRequest): List<AssignmentResponse> {
@@ -42,13 +43,14 @@ class CleaningAreaService(
                 .orElseThrow { BusinessException(ErrorCode.STUDENT_NOT_FOUND) }
         }
 
+        val existingByStudent = students.associate { it.id to assignmentRepository.findByStudentId(it.id) }
+        if (existingByStudent.values.any { list -> list.any { it.area.id != areaId } }) {
+            throw BusinessException(ErrorCode.ALREADY_ASSIGNED)
+        }
+
         val assignments = students.map { student ->
-            val existing = assignmentRepository.findByStudentId(student.id)
-            existing.firstOrNull { it.area.id == areaId }
-                ?: run {
-                    assignmentRepository.deleteAll(existing)
-                    assignmentRepository.save(Assignment(area = area, student = student))
-                }
+            existingByStudent.getValue(student.id).firstOrNull()
+                ?: assignmentRepository.save(Assignment(area = area, student = student))
         }
         return assignments.map(AssignmentResponse::from)
     }
