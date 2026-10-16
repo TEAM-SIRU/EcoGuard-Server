@@ -227,7 +227,15 @@ class SpecFlowIntegrationTests @Autowired constructor(
             jsonPath("$.members.length()") { value(2) }
         }
 
-        val processing = verificationRepository.save(
+        // 한 학생은 한 구역만: 다른 구역에 배정 시도하면 거절된다
+        val other = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_T2", name = "Other hall", cleanTime = "08:00~08:10"))
+        mockMvc.patch("/api/v1/cleaning-areas/${other.id}") { bearer(teacher); json("""{"isActive":true}""") }
+            .andExpect { status { isOk() } }
+        mockMvc.post("/api/v1/cleaning-areas/${other.id}/assignments") {
+            bearer(teacher); json("""{"studentIds":[${student1.id}]}""")
+        }.andExpect { status { isConflict() }; jsonPath("$.code") { value("ALREADY_ASSIGNED") } }
+
+        val processing =verificationRepository.save(
             Verification(student = student1, area = area, photoUrl = "/files/a.jpg", verificationDate = LocalDate.now().minusDays(1)),
         )
         mockMvc.post("/api/v1/verifications/${processing.id}/appeals") { bearer(s1); json("""{"content":"x"}""") }
