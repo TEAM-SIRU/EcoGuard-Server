@@ -146,6 +146,34 @@ class SpecFlowIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `simultaneous assign requests for the same student create a single assignment`() {
+        val teacher = login("TEACHER|9321|t@test.local|Teacher|||")
+        login("STUDENT|9322|s1@test.local|S1|1101|1|1")
+        val student = userRepository.findByGsmAccountId(9322)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_C", name = "Concurrent hall"))
+        mockMvc.patch("/api/v1/cleaning-areas/${area.id}") { bearer(teacher); json("""{"isActive":true}""") }
+            .andExpect { status { isOk() } }
+
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(4)
+        val start = java.util.concurrent.CountDownLatch(1)
+        val statuses = (1..4).map {
+            pool.submit<Int> {
+                start.await()
+                mockMvc.post("/api/v1/cleaning-areas/${area.id}/assignments") {
+                    bearer(teacher); json("""{"studentIds":[${student.id}]}""")
+                }.andReturn().response.status
+            }
+        }
+        start.countDown()
+        val results = statuses.map { it.get() }
+        pool.shutdown()
+
+        assertEquals(1, results.count { it == 201 })
+        assertEquals(3, results.count { it == 409 })
+        assertEquals(1, assignmentRepository.findByStudentId(student.id).size)
+    }
+
+    @Test
     fun `teacher can unassign a student from an area`() {
         val teacher = login("TEACHER|9301|t@test.local|Teacher|||")
         val s1 = login("STUDENT|9302|s1@test.local|S1|1101|1|1")
@@ -250,8 +278,13 @@ class SpecFlowIntegrationTests @Autowired constructor(
         mockMvc.post("/api/v1/cleaning-areas/${other.id}/assignments") {
             bearer(teacher); json("""{"studentIds":[${student1.id}]}""")
         }.andExpect { status { isConflict() }; jsonPath("$.code") { value("ALREADY_ASSIGNED") } }
+        // 같은 구역에 다시 배정하는 것도 거절되고 배정 행이 늘어나지 않는다
+        mockMvc.post("/api/v1/cleaning-areas/${area.id}/assignments") {
+            bearer(teacher); json("""{"studentIds":[${student1.id}]}""")
+        }.andExpect { status { isConflict() }; jsonPath("$.code") { value("ALREADY_ASSIGNED") } }
+        assertEquals(1, assignmentRepository.findByStudentId(student1.id).size)
 
-        val processing =verificationRepository.save(
+        val processing = verificationRepository.save(
             Verification(student = student1, area = area, photoUrl = "/files/a.jpg", verificationDate = LocalDate.now().minusDays(1)),
         )
         mockMvc.post("/api/v1/verifications/${processing.id}/appeals") { bearer(s1); json("""{"content":"x"}""") }
