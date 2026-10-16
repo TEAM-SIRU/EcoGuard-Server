@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import team.siru.ecoguard.activity.ServiceTimeLogRepository
 import team.siru.ecoguard.appeal.AppealRepository
+import team.siru.ecoguard.cleaningarea.Assignment
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.cleaningarea.CleaningArea
 import team.siru.ecoguard.cleaningarea.CleaningAreaRepository
@@ -169,6 +170,21 @@ class SpecFlowIntegrationTests @Autowired constructor(
             .andExpect { status { isOk() }; jsonPath("$.members.length()") { value(1) } }
         mockMvc.delete("/api/v1/cleaning-areas/${area.id}/assignments/${student1.id}") { bearer(teacher) }
             .andExpect { status { isNotFound() }; jsonPath("$.code") { value("ASSIGNMENT_NOT_FOUND") } }
+    }
+
+    @Test
+    fun `unassigning removes duplicated assignment rows of the same area at once`() {
+        val teacher = login("TEACHER|9311|t@test.local|Teacher|||")
+        login("STUDENT|9312|s1@test.local|S1|1101|1|1")
+        val student = userRepository.findByGsmAccountId(9312)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_D", name = "Duplicate hall"))
+        assignmentRepository.save(Assignment(area = area, student = student))
+        assignmentRepository.save(Assignment(area = area, student = student))
+
+        mockMvc.delete("/api/v1/cleaning-areas/${area.id}/assignments/${student.id}") { bearer(teacher) }
+            .andExpect { status { isNoContent() } }
+
+        assert(assignmentRepository.findByStudentId(student.id).isEmpty())
     }
 
     @Test
