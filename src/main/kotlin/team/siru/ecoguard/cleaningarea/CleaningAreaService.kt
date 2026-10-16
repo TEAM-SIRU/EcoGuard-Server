@@ -27,8 +27,8 @@ class CleaningAreaService(
 
     /**
      * 활성 구역에 학생을 배정한다. 한 구역에 여러 명을 배정할 수 있지만 학생은 한 구역만 맡을 수 있다.
-     * 요청에 이미 다른 구역에 배정된 학생이 있으면 아무도 배정하지 않고 ALREADY_ASSIGNED로 거절한다.
-     * 같은 구역에 이미 배정된 학생은 그대로 둔다.
+     * 요청에 이미 배정된 학생(같은 구역이든 다른 구역이든)이 있으면 아무도 배정하지 않고 ALREADY_ASSIGNED로 거절한다.
+     * 같은 학생에 대한 동시 요청이 중복 배정을 만들지 않도록 학생 행을 잠근 뒤 확인한다.
      */
     @Transactional
     fun assignStudents(areaId: Long, request: AssignStudentsRequest): List<AssignmentResponse> {
@@ -37,22 +37,20 @@ class CleaningAreaService(
             throw BusinessException(ErrorCode.INACTIVE_AREA)
         }
 
-        val students = request.studentIds.distinct().map { studentId ->
-            userRepository.findById(studentId)
-                .filter { it.role == Role.STUDENT }
-                .orElseThrow { BusinessException(ErrorCode.STUDENT_NOT_FOUND) }
+        // 교착을 피하려고 항상 id 순서로 잠근다.
+        val students = request.studentIds.distinct().sorted().map { studentId ->
+            userRepository.findWithLockById(studentId)
+                ?.takeIf { it.role == Role.STUDENT }
+                ?: throw BusinessException(ErrorCode.STUDENT_NOT_FOUND)
         }
 
-        val existingByStudent = students.associate { it.id to assignmentRepository.findByStudentId(it.id) }
-        if (existingByStudent.values.any { list -> list.any { it.area.id != areaId } }) {
+        if (students.any { assignmentRepository.existsByStudentId(it.id) }) {
             throw BusinessException(ErrorCode.ALREADY_ASSIGNED)
         }
 
-        val assignments = students.map { student ->
-            existingByStudent.getValue(student.id).firstOrNull()
-                ?: assignmentRepository.save(Assignment(area = area, student = student))
-        }
-        return assignments.map(AssignmentResponse::from)
+        return students
+            .map { assignmentRepository.save(Assignment(area = area, student = it)) }
+            .map(AssignmentResponse::from)
     }
 
     /**
