@@ -9,6 +9,8 @@ import team.siru.ecoguard.activity.dto.MyActivityResponse
 import team.siru.ecoguard.activity.dto.StudentActivityResponse
 import team.siru.ecoguard.activity.dto.WeeklyActivityResponse
 import team.siru.ecoguard.activity.dto.WeeklyDay
+import team.siru.ecoguard.activity.dto.WeeklyParticipationDay
+import team.siru.ecoguard.activity.dto.WeeklyParticipationResponse
 import team.siru.ecoguard.cleaningarea.Assignment
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.common.exception.BusinessException
@@ -89,6 +91,27 @@ class ActivityService(
             requiredDays = CLEANING_DAYS_PER_WEEK - vacationDays,
             days = days,
         )
+    }
+
+    /** 교사 홈의 이번 주 참여율: 배정 학생 중 요일별로 인증을 제출한 비율 */
+    @Transactional(readOnly = true)
+    fun getWeeklyParticipation(): WeeklyParticipationResponse {
+        val monday = LocalDate.now(clock).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val friday = monday.plusDays((CLEANING_DAYS_PER_WEEK - 1).toLong())
+        val assigned = assignmentRepository.countAssignedStudents().toInt()
+        val countsByDate = verificationRepository.countAssignedStudentsByDate(monday, friday)
+            .associate { row -> row[0] as LocalDate to ((row[1] as Number).toInt() to (row[2] as Number).toInt()) }
+        val days = (0 until CLEANING_DAYS_PER_WEEK).map { offset ->
+            val date = monday.plusDays(offset.toLong())
+            val (submitted, approved) = countsByDate[date] ?: (0 to 0)
+            WeeklyParticipationDay(
+                date = date,
+                submittedCount = submitted,
+                approvedCount = approved,
+                participationRate = if (assigned == 0) 0 else Math.round(submitted * 100.0 / assigned).toInt(),
+            )
+        }
+        return WeeklyParticipationResponse(weekStart = monday, weekEnd = friday, assignedCount = assigned, days = days)
     }
 
     @Transactional(readOnly = true)

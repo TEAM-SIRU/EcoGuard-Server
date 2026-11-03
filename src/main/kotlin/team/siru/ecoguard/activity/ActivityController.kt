@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController
 import team.siru.ecoguard.activity.dto.MyActivityResponse
 import team.siru.ecoguard.activity.dto.StudentActivityResponse
 import team.siru.ecoguard.activity.dto.WeeklyActivityResponse
+import team.siru.ecoguard.activity.dto.WeeklyParticipationResponse
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.security.SecurityUtils
@@ -38,6 +39,11 @@ class ActivityController(
     @PreAuthorize("hasRole('STUDENT')")
     fun getMyWeeklyActivity(): ResponseEntity<WeeklyActivityResponse> =
         ResponseEntity.ok(activityService.getWeeklyActivity(SecurityUtils.currentUserId()))
+
+    @GetMapping("/service-times/weekly")
+    @PreAuthorize("hasRole('TEACHER')")
+    fun getWeeklyParticipation(): ResponseEntity<WeeklyParticipationResponse> =
+        ResponseEntity.ok(activityService.getWeeklyParticipation())
 
     @GetMapping("/students/activities")
     @ApiErrors(ErrorCode.NO_SEARCH_RESULT)

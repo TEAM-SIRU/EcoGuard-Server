@@ -178,6 +178,57 @@ class ActivityRecordIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `teacher sees weekly participation rate of assigned students per weekday`() {
+        val area = cleaningAreaRepository.findAll().first()
+        login("STUDENT|9303|s2@test.local|Student2|1102|1|2")
+        login("STUDENT|9304|s3@test.local|Unassigned|1103|1|3")
+        val second = userRepository.findByGsmAccountId(9303)!!
+        val unassigned = userRepository.findByGsmAccountId(9304)!!
+        assignmentRepository.save(Assignment(area = area, student = second))
+        fun submit(who: User, date: LocalDate, status: VerificationStatus) {
+            verificationRepository.save(
+                Verification(student = who, area = area, photoUrl = "/files/${who.id}-$date.jpg", verificationDate = date, status = status),
+            )
+        }
+        submit(second, LocalDate.of(2026, 9, 14), VerificationStatus.REJECTED)
+        submit(second, LocalDate.of(2026, 9, 16), VerificationStatus.PROCESSING)
+        // 배정되지 않은 학생의 인증과 지난주 인증은 이번 주 참여율에 들어가지 않는다.
+        submit(unassigned, LocalDate.of(2026, 9, 14), VerificationStatus.APPROVED)
+        submit(second, LocalDate.of(2026, 9, 11), VerificationStatus.APPROVED)
+
+        mockMvc.get("/api/v1/service-times/weekly") { bearer(teacherToken) }.andExpect {
+            status { isOk() }
+            jsonPath("$.weekStart") { value("2026-09-14") }
+            jsonPath("$.weekEnd") { value("2026-09-18") }
+            jsonPath("$.assignedCount") { value(2) }
+            jsonPath("$.days.length()") { value(5) }
+            jsonPath("$.days[0].submittedCount") { value(2) }
+            jsonPath("$.days[0].approvedCount") { value(1) }
+            jsonPath("$.days[0].participationRate") { value(100) }
+            jsonPath("$.days[1].submittedCount") { value(0) }
+            jsonPath("$.days[1].participationRate") { value(0) }
+            jsonPath("$.days[2].date") { value("2026-09-16") }
+            jsonPath("$.days[2].submittedCount") { value(1) }
+            jsonPath("$.days[2].approvedCount") { value(0) }
+            jsonPath("$.days[2].participationRate") { value(50) }
+        }
+
+        mockMvc.get("/api/v1/service-times/weekly") { bearer(studentToken) }
+            .andExpect { status { isForbidden() } }
+    }
+
+    @Test
+    fun `weekly participation is zero when nobody is assigned`() {
+        assignmentRepository.deleteAll()
+
+        mockMvc.get("/api/v1/service-times/weekly") { bearer(teacherToken) }.andExpect {
+            status { isOk() }
+            jsonPath("$.assignedCount") { value(0) }
+            jsonPath("$.days[0].participationRate") { value(0) }
+        }
+    }
+
+    @Test
     fun `teacher sees attendance and a student's monthly record`() {
         mockMvc.get("/api/v1/students/activities?keyword=1101") { bearer(teacherToken) }.andExpect {
             status { isOk() }
