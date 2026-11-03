@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import team.siru.ecoguard.activity.ServiceTimeLogRepository
 import team.siru.ecoguard.appeal.AppealRepository
+import team.siru.ecoguard.cleaningarea.Assignment
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.cleaningarea.CleaningArea
 import team.siru.ecoguard.cleaningarea.CleaningAreaRepository
@@ -145,6 +146,34 @@ class SpecFlowIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `simultaneous assign requests for the same student create a single assignment`() {
+        val teacher = login("TEACHER|9321|t@test.local|Teacher|||")
+        login("STUDENT|9322|s1@test.local|S1|1101|1|1")
+        val student = userRepository.findByGsmAccountId(9322)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_C", name = "Concurrent hall"))
+        mockMvc.patch("/api/v1/cleaning-areas/${area.id}") { bearer(teacher); json("""{"isActive":true}""") }
+            .andExpect { status { isOk() } }
+
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(4)
+        val start = java.util.concurrent.CountDownLatch(1)
+        val statuses = (1..4).map {
+            pool.submit<Int> {
+                start.await()
+                mockMvc.post("/api/v1/cleaning-areas/${area.id}/assignments") {
+                    bearer(teacher); json("""{"studentIds":[${student.id}]}""")
+                }.andReturn().response.status
+            }
+        }
+        start.countDown()
+        val results = statuses.map { it.get() }
+        pool.shutdown()
+
+        assertEquals(1, results.count { it == 201 })
+        assertEquals(3, results.count { it == 409 })
+        assertEquals(1, assignmentRepository.findByStudentId(student.id).size)
+    }
+
+    @Test
     fun `teacher can unassign a student from an area`() {
         val teacher = login("TEACHER|9301|t@test.local|Teacher|||")
         val s1 = login("STUDENT|9302|s1@test.local|S1|1101|1|1")
@@ -169,6 +198,21 @@ class SpecFlowIntegrationTests @Autowired constructor(
             .andExpect { status { isOk() }; jsonPath("$.members.length()") { value(1) } }
         mockMvc.delete("/api/v1/cleaning-areas/${area.id}/assignments/${student1.id}") { bearer(teacher) }
             .andExpect { status { isNotFound() }; jsonPath("$.code") { value("ASSIGNMENT_NOT_FOUND") } }
+    }
+
+    @Test
+    fun `unassigning removes duplicated assignment rows of the same area at once`() {
+        val teacher = login("TEACHER|9311|t@test.local|Teacher|||")
+        login("STUDENT|9312|s1@test.local|S1|1101|1|1")
+        val student = userRepository.findByGsmAccountId(9312)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_D", name = "Duplicate hall"))
+        assignmentRepository.save(Assignment(area = area, student = student))
+        assignmentRepository.save(Assignment(area = area, student = student))
+
+        mockMvc.delete("/api/v1/cleaning-areas/${area.id}/assignments/${student.id}") { bearer(teacher) }
+            .andExpect { status { isNoContent() } }
+
+        assert(assignmentRepository.findByStudentId(student.id).isEmpty())
     }
 
     @Test
@@ -226,6 +270,19 @@ class SpecFlowIntegrationTests @Autowired constructor(
             jsonPath("$.zoneCode") { value(area.zoneCode) }
             jsonPath("$.members.length()") { value(2) }
         }
+
+        // 한 학생은 한 구역만: 다른 구역에 배정 시도하면 거절된다
+        val other = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_T2", name = "Other hall", cleanTime = "08:00~08:10"))
+        mockMvc.patch("/api/v1/cleaning-areas/${other.id}") { bearer(teacher); json("""{"isActive":true}""") }
+            .andExpect { status { isOk() } }
+        mockMvc.post("/api/v1/cleaning-areas/${other.id}/assignments") {
+            bearer(teacher); json("""{"studentIds":[${student1.id}]}""")
+        }.andExpect { status { isConflict() }; jsonPath("$.code") { value("ALREADY_ASSIGNED") } }
+        // 같은 구역에 다시 배정하는 것도 거절되고 배정 행이 늘어나지 않는다
+        mockMvc.post("/api/v1/cleaning-areas/${area.id}/assignments") {
+            bearer(teacher); json("""{"studentIds":[${student1.id}]}""")
+        }.andExpect { status { isConflict() }; jsonPath("$.code") { value("ALREADY_ASSIGNED") } }
+        assertEquals(1, assignmentRepository.findByStudentId(student1.id).size)
 
         val processing = verificationRepository.save(
             Verification(student = student1, area = area, photoUrl = "/files/a.jpg", verificationDate = LocalDate.now().minusDays(1)),

@@ -26,8 +26,9 @@ class CleaningAreaService(
     }
 
     /**
-     * 활성 구역에 학생을 배정한다. 한 구역에 여러 명을 배정할 수 있고,
-     * 학생은 한 구역만 담당하므로 다른 구역에 배정돼 있던 학생은 이 구역으로 옮겨진다.
+     * 활성 구역에 학생을 배정한다. 한 구역에 여러 명을 배정할 수 있지만 학생은 한 구역만 맡을 수 있다.
+     * 요청에 이미 배정된 학생(같은 구역이든 다른 구역이든)이 있으면 아무도 배정하지 않고 ALREADY_ASSIGNED로 거절한다.
+     * 같은 학생에 대한 동시 요청이 중복 배정을 만들지 않도록 학생 행을 잠근 뒤 확인한다.
      */
     @Transactional
     fun assignStudents(areaId: Long, request: AssignStudentsRequest): List<AssignmentResponse> {
@@ -36,29 +37,31 @@ class CleaningAreaService(
             throw BusinessException(ErrorCode.INACTIVE_AREA)
         }
 
-        val students = request.studentIds.distinct().map { studentId ->
-            userRepository.findById(studentId)
-                .filter { it.role == Role.STUDENT }
-                .orElseThrow { BusinessException(ErrorCode.STUDENT_NOT_FOUND) }
+        // 교착을 피하려고 항상 id 순서로 잠근다.
+        val students = request.studentIds.distinct().sorted().map { studentId ->
+            userRepository.findWithLockById(studentId)
+                ?.takeIf { it.role == Role.STUDENT }
+                ?: throw BusinessException(ErrorCode.STUDENT_NOT_FOUND)
         }
 
-        val assignments = students.map { student ->
-            val existing = assignmentRepository.findByStudentId(student.id)
-            existing.firstOrNull { it.area.id == areaId }
-                ?: run {
-                    assignmentRepository.deleteAll(existing)
-                    assignmentRepository.save(Assignment(area = area, student = student))
-                }
+        if (students.any { assignmentRepository.existsByStudentId(it.id) }) {
+            throw BusinessException(ErrorCode.ALREADY_ASSIGNED)
         }
-        return assignments.map(AssignmentResponse::from)
+
+        return students
+            .map { assignmentRepository.save(Assignment(area = area, student = it)) }
+            .map(AssignmentResponse::from)
     }
 
-    /** 잘못 배정한 학생을 구역에서 뺀다. 그 구역에 배정돼 있지 않으면 ASSIGNMENT_NOT_FOUND. */
+    /**
+     * 잘못 배정한 학생을 구역에서 뺀다. 그 구역에 배정돼 있지 않으면 ASSIGNMENT_NOT_FOUND.
+     * 같은 구역에 중복으로 쌓인 배정 행이 있어도 한 번에 모두 지운다.
+     */
     @Transactional
     fun unassignStudent(areaId: Long, studentId: Long) {
-        val assignment = assignmentRepository.findByAreaIdAndStudentId(areaId, studentId)
-            ?: throw BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND)
-        assignmentRepository.delete(assignment)
+        val assignments = assignmentRepository.findByAreaIdAndStudentId(areaId, studentId)
+        if (assignments.isEmpty()) throw BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND)
+        assignmentRepository.deleteAll(assignments)
     }
 
     @Transactional(readOnly = true)
