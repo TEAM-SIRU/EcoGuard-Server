@@ -29,13 +29,13 @@ class AiReviewController(
         ResponseEntity.ok(aiReviewService.getManualReviewQueue())
 
     @PatchMapping("/{verificationId}/review")
-    @ApiErrors(ErrorCode.REVIEW_NOT_FOUND, ErrorCode.NOT_MANUAL_REVIEW)
+    @ApiErrors(ErrorCode.VALIDATION_ERROR, ErrorCode.REVIEW_NOT_FOUND, ErrorCode.NOT_MANUAL_REVIEW)
     @PreAuthorize("hasRole('TEACHER')")
     fun decide(
         @PathVariable verificationId: Long,
         @Valid @RequestBody request: ManualReviewDecisionRequest,
     ): ResponseEntity<Void> {
-        aiReviewService.decide(verificationId, request.decision)
+        aiReviewService.decide(verificationId, request.decision, request.reason)
         return ResponseEntity.ok().build()
     }
 

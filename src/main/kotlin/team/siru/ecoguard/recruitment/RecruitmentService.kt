@@ -91,6 +91,16 @@ class RecruitmentService(
         }
     }
 
+    @Transactional
+    fun deleteRecruitment(recruitmentId: Long) {
+        val recruitment = recruitmentRepository.findWithLockById(recruitmentId)
+            ?: throw BusinessException(ErrorCode.RECRUITMENT_NOT_FOUND)
+        if (applicationRepository.countByRecruitmentId(recruitmentId) > 0) {
+            throw BusinessException(ErrorCode.RECRUITMENT_HAS_APPLICANTS)
+        }
+        recruitmentRepository.delete(recruitment)
+    }
+
     private fun validateActivityTime(start: LocalTime, end: LocalTime) {
         if (!start.isBefore(end)) throw BusinessException(ErrorCode.INVALID_ACTIVITY_TIME)
     }

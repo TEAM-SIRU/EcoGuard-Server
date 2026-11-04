@@ -169,7 +169,7 @@ class AiReviewService(
             .map(ManualReviewItemResponse::from)
 
     @Transactional
-    fun decide(verificationId: Long, decision: ManualDecision) {
+    fun decide(verificationId: Long, decision: ManualDecision, reason: String? = null) {
         // 교사 두 명이 동시에 승인해도 봉사시간이 두 번 적립되지 않도록 잠근 뒤 상태를 확인한다.
         val verification = verificationRepository.findWithLockById(verificationId)
             ?: throw BusinessException(ErrorCode.REVIEW_NOT_FOUND)
@@ -189,6 +189,7 @@ class AiReviewService(
             eventPublisher.publishEvent(NotificationEvent.verificationApproved(verification.student.id, verification.id))
         } else {
             verification.status = VerificationStatus.REJECTED
+            reason?.trim()?.takeIf { it.isNotEmpty() }?.let { verification.failReasons = mutableListOf(it) }
             eventPublisher.publishEvent(NotificationEvent.verificationRejected(verification.student.id, verification.id))
         }
     }

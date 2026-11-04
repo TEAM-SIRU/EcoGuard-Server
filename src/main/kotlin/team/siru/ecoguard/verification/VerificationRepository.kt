@@ -32,6 +32,21 @@ interface VerificationRepository : JpaRepository<Verification, Long> {
         @Param("status") status: VerificationStatus,
     ): List<Array<Any>>
 
+    /** 청소구역에 배정된 학생의 [from, to] 인증을 날짜별로 센다. 행: [날짜, 제출 학생 수, 승인 학생 수] */
+    @Query(
+        "select v.verificationDate, count(distinct v.student.id), " +
+            "count(distinct case when v.status = :approved then v.student.id else null end) " +
+            "from Verification v " +
+            "where v.verificationDate between :from and :to " +
+            "and exists (select 1 from Assignment a where a.student.id = v.student.id) " +
+            "group by v.verificationDate",
+    )
+    fun countAssignedStudentsByDate(
+        @Param("from") from: LocalDate,
+        @Param("to") to: LocalDate,
+        @Param("approved") approved: VerificationStatus = VerificationStatus.APPROVED,
+    ): List<Array<Any>>
+
     fun existsByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Boolean
     fun findByStudentIdAndIdempotencyKey(studentId: Long, idempotencyKey: String): Verification?
     fun findByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Verification?

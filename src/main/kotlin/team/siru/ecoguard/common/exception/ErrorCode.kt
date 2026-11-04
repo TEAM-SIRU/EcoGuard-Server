@@ -28,6 +28,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     RECRUITMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "모집 공고를 찾을 수 없습니다."),
     RECRUITMENT_CLOSED(HttpStatus.CONFLICT, "이미 종료된 모집입니다."),
     CLASS_MISMATCH(HttpStatus.FORBIDDEN, "본인 학년/반의 모집에만 신청할 수 있습니다."),
+    RECRUITMENT_HAS_APPLICANTS(HttpStatus.CONFLICT, "신청자가 있는 모집 공고는 삭제할 수 없습니다."),
     MAX_COUNT_BELOW_APPLICANTS(HttpStatus.CONFLICT, "모집 인원을 현재 신청 인원보다 적게 설정할 수 없습니다."),
 
     // cleaning-areas
@@ -36,6 +37,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     NO_ASSIGNMENT(HttpStatus.NOT_FOUND, "배정된 구역이 없습니다."),
     AREA_NOT_FOUND(HttpStatus.NOT_FOUND, "구역 정보를 찾을 수 없습니다."),
     ASSIGNMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 구역에 배정된 학생이 아닙니다."),
+    ALREADY_ASSIGNED(HttpStatus.CONFLICT, "이미 구역에 배정된 학생이 포함되어 있습니다. 구역을 바꾸려면 기존 배정을 해제한 뒤 다시 배정해 주세요."),
     ZONE_MODEL_NOT_READY(HttpStatus.CONFLICT, "AI 모델이 준비되지 않은 구역은 활성화할 수 없습니다."),
 
     // verifications

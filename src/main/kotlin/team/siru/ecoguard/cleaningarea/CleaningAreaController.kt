@@ -32,7 +32,7 @@ class CleaningAreaController(
         ResponseEntity.ok(cleaningAreaService.getAreas())
 
     @PostMapping("/cleaning-areas/{areaId}/assignments")
-    @ApiErrors(ErrorCode.AREA_NOT_FOUND, ErrorCode.INACTIVE_AREA, ErrorCode.STUDENT_NOT_FOUND, success = 201)
+    @ApiErrors(ErrorCode.AREA_NOT_FOUND, ErrorCode.INACTIVE_AREA, ErrorCode.STUDENT_NOT_FOUND, ErrorCode.ALREADY_ASSIGNED, success = 201)
     @PreAuthorize("hasRole('TEACHER')")
     fun assignStudents(
         @PathVariable areaId: Long,

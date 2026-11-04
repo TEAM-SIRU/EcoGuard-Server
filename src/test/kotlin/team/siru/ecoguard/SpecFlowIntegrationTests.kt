@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import team.siru.ecoguard.activity.ServiceTimeLogRepository
 import team.siru.ecoguard.appeal.AppealRepository
+import team.siru.ecoguard.cleaningarea.Assignment
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
 import team.siru.ecoguard.cleaningarea.CleaningArea
 import team.siru.ecoguard.cleaningarea.CleaningAreaRepository
@@ -115,6 +116,64 @@ class SpecFlowIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `teacher can delete a recruitment only while it has no applicants`() {
+        val teacher = login("TEACHER|9201|t@test.local|Teacher|||")
+        val student = login("STUDENT|9202|s1@test.local|S1|1101|1|1")
+        fun create(classNo: Int) = post(teacher, "/api/v1/recruitments", """
+            {"semester":"2026-2","grade":1,"classNo":$classNo,"maxCount":2,
+             "startDate":"${LocalDateTime.now().minusDays(1)}","endDate":"${LocalDateTime.now().plusDays(1)}"}
+        """).get("recruitmentId").asLong()
+        val withApplicant = create(1)
+        val empty = create(2)
+
+        mockMvc.post("/api/v1/recruitments/$withApplicant/applications") {
+            bearer(student); json("""{"motivation":"x"}""")
+        }.andExpect { status { isCreated() } }
+
+        mockMvc.delete("/api/v1/recruitments/$empty") { bearer(student) }
+            .andExpect { status { isForbidden() } }
+
+        mockMvc.delete("/api/v1/recruitments/$withApplicant") { bearer(teacher) }
+            .andExpect { status { isConflict() }; jsonPath("$.code") { value("RECRUITMENT_HAS_APPLICANTS") } }
+        assertEquals(true, recruitmentRepository.existsById(withApplicant))
+
+        mockMvc.delete("/api/v1/recruitments/$empty") { bearer(teacher) }
+            .andExpect { status { isNoContent() } }
+        assertEquals(false, recruitmentRepository.existsById(empty))
+
+        mockMvc.delete("/api/v1/recruitments/$empty") { bearer(teacher) }
+            .andExpect { status { isNotFound() }; jsonPath("$.code") { value("RECRUITMENT_NOT_FOUND") } }
+    }
+
+    @Test
+    fun `simultaneous assign requests for the same student create a single assignment`() {
+        val teacher = login("TEACHER|9321|t@test.local|Teacher|||")
+        login("STUDENT|9322|s1@test.local|S1|1101|1|1")
+        val student = userRepository.findByGsmAccountId(9322)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_C", name = "Concurrent hall"))
+        mockMvc.patch("/api/v1/cleaning-areas/${area.id}") { bearer(teacher); json("""{"isActive":true}""") }
+            .andExpect { status { isOk() } }
+
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(4)
+        val start = java.util.concurrent.CountDownLatch(1)
+        val statuses = (1..4).map {
+            pool.submit<Int> {
+                start.await()
+                mockMvc.post("/api/v1/cleaning-areas/${area.id}/assignments") {
+                    bearer(teacher); json("""{"studentIds":[${student.id}]}""")
+                }.andReturn().response.status
+            }
+        }
+        start.countDown()
+        val results = statuses.map { it.get() }
+        pool.shutdown()
+
+        assertEquals(1, results.count { it == 201 })
+        assertEquals(3, results.count { it == 409 })
+        assertEquals(1, assignmentRepository.findByStudentId(student.id).size)
+    }
+
+    @Test
     fun `teacher can unassign a student from an area`() {
         val teacher = login("TEACHER|9301|t@test.local|Teacher|||")
         val s1 = login("STUDENT|9302|s1@test.local|S1|1101|1|1")
@@ -142,6 +201,55 @@ class SpecFlowIntegrationTests @Autowired constructor(
     }
 
     @Test
+    fun `unassigning removes duplicated assignment rows of the same area at once`() {
+        val teacher = login("TEACHER|9311|t@test.local|Teacher|||")
+        login("STUDENT|9312|s1@test.local|S1|1101|1|1")
+        val student = userRepository.findByGsmAccountId(9312)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_D", name = "Duplicate hall"))
+        assignmentRepository.save(Assignment(area = area, student = student))
+        assignmentRepository.save(Assignment(area = area, student = student))
+
+        mockMvc.delete("/api/v1/cleaning-areas/${area.id}/assignments/${student.id}") { bearer(teacher) }
+            .andExpect { status { isNoContent() } }
+
+        assert(assignmentRepository.findByStudentId(student.id).isEmpty())
+    }
+
+    @Test
+    fun `teacher reject reason is stored and shown to the student`() {
+        val teacher = login("TEACHER|9401|t@test.local|Teacher|||")
+        val s1 = login("STUDENT|9402|s1@test.local|S1|1101|1|1")
+        val student1 = userRepository.findByGsmAccountId(9402)!!
+        val area = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_R", name = "Reject hall"))
+        fun manual(day: Long) = verificationRepository.save(
+            Verification(student = student1, area = area, photoUrl = "/files/r$day.jpg", verificationDate = LocalDate.now().minusDays(day))
+                .apply { status = VerificationStatus.MANUAL_REVIEW },
+        )
+
+        val withReason = manual(1)
+        mockMvc.patch("/api/v1/verifications/${withReason.id}/review") {
+            bearer(teacher); json("""{"decision":"REJECTED","reason":"  청소 전 사진 같아요  "}""")
+        }.andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/verifications/${withReason.id}/review") { bearer(s1) }.andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("REJECTED") }
+            jsonPath("$.failReasons[0]") { value("청소 전 사진 같아요") }
+            jsonPath("$.failReasons.length()") { value(1) }
+        }
+
+        val tooLong = manual(2)
+        mockMvc.patch("/api/v1/verifications/${tooLong.id}/review") {
+            bearer(teacher); json("""{"decision":"REJECTED","reason":"${"가".repeat(201)}"}""")
+        }.andExpect { status { isBadRequest() }; jsonPath("$.code") { value("VALIDATION_ERROR") } }
+
+        val noReason = manual(3)
+        mockMvc.patch("/api/v1/verifications/${noReason.id}/review") { bearer(teacher); json("""{"decision":"REJECTED"}""") }
+            .andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/verifications/${noReason.id}/review") { bearer(s1) }
+            .andExpect { status { isOk() }; jsonPath("$.status") { value("REJECTED") }; jsonPath("$.failReasons.length()") { value(0) } }
+    }
+
+    @Test
     fun `assignment exposes co-assigned students and appeal only works on own rejected verification`() {
         val teacher = login("TEACHER|9201|t@test.local|Teacher|||")
         val s1 = login("STUDENT|9202|s1@test.local|S1|1101|1|1")
@@ -162,6 +270,19 @@ class SpecFlowIntegrationTests @Autowired constructor(
             jsonPath("$.zoneCode") { value(area.zoneCode) }
             jsonPath("$.members.length()") { value(2) }
         }
+
+        // 한 학생은 한 구역만: 다른 구역에 배정 시도하면 거절된다
+        val other = cleaningAreaRepository.save(CleaningArea(zoneCode = "zone_T2", name = "Other hall", cleanTime = "08:00~08:10"))
+        mockMvc.patch("/api/v1/cleaning-areas/${other.id}") { bearer(teacher); json("""{"isActive":true}""") }
+            .andExpect { status { isOk() } }
+        mockMvc.post("/api/v1/cleaning-areas/${other.id}/assignments") {
+            bearer(teacher); json("""{"studentIds":[${student1.id}]}""")
+        }.andExpect { status { isConflict() }; jsonPath("$.code") { value("ALREADY_ASSIGNED") } }
+        // 같은 구역에 다시 배정하는 것도 거절되고 배정 행이 늘어나지 않는다
+        mockMvc.post("/api/v1/cleaning-areas/${area.id}/assignments") {
+            bearer(teacher); json("""{"studentIds":[${student1.id}]}""")
+        }.andExpect { status { isConflict() }; jsonPath("$.code") { value("ALREADY_ASSIGNED") } }
+        assertEquals(1, assignmentRepository.findByStudentId(student1.id).size)
 
         val processing = verificationRepository.save(
             Verification(student = student1, area = area, photoUrl = "/files/a.jpg", verificationDate = LocalDate.now().minusDays(1)),
