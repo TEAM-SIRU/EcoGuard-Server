@@ -111,6 +111,11 @@ ai-server:
   evaluate-path: /api/v1/cleaning/evaluate
   timeout-millis: 15000
 
+# Firebase(FCM) 푸시 알림. 서비스 계정 키(JSON) 파일 경로를 넣으면 푸시를 보낸다.
+# 비어 있으면 푸시는 보내지 않고 앱 안의 알림함에만 기록한다.
+fcm:
+  credentials-path: ${FCM_CREDENTIALS_PATH:}
+
 file-storage:
   base-path: ${FILE_STORAGE_PATH:uploads}
   public-url-prefix: /files

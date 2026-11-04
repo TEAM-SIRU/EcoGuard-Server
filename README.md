@@ -310,6 +310,7 @@ SWAGGER_ENABLED=false                           # true면 /swagger-ui.html, /v3/
 SWAGGER_USERNAME=                               # SWAGGER_ENABLED=true일 때 필수. 문서 로그인 아이디
 SWAGGER_PASSWORD=                               # SWAGGER_ENABLED=true일 때 필수. 12자 이상, 문서를 볼 팀원에게만 전달
 DDL_AUTO=validate                              # 기본 validate. 빈 DB 최초 1회만 update
+FCM_CREDENTIALS_PATH=                          # 선택, Firebase 서비스 계정 키(JSON) 파일 경로. 비우면 푸시는 보내지 않고 앱 안 알림함에만 기록
 
 # 앱 스토어 심사용 데모 학생 계정 (심사 기간에만 켠다)
 DEMO_ACCOUNT_ENABLED=false                     # 기본 false
@@ -326,6 +327,38 @@ TEACHER_EMAILS=                                # 선택, 쉼표로 구분한 이
 `TEACHER_EMAILS`에 적은 이메일(대소문자 무시)로 dataGSM 로그인하면 학생 계정이어도 교사 권한(`TEACHER`)으로 들어옵니다. 로그인할 때마다 다시 판단하므로 목록에서 빼면 다음 로그인부터 원래 역할로 돌아가고, 이미 발급된 토큰은 액세스 토큰 만료(또는 로그아웃) 전까지 유지됩니다. 데모 계정에는 적용되지 않습니다.
 
 실제 인증 정보 및 비밀키는 저장소에 포함하지 않습니다.
+
+#### 기존 DB 마이그레이션 (푸시 알림)
+
+FCM 푸시 알림을 위해 `device_tokens`(기기 토큰), `notifications`(앱 안 알림함) 테이블이 새로 생깁니다. 운영은 `DDL_AUTO=validate`라서 이 버전을 배포하기 **전에** 기존 DB에서 한 번 실행합니다.
+
+```sql
+CREATE TABLE device_tokens (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    user_id BIGINT NOT NULL,
+    token VARCHAR(512) NOT NULL,
+    platform VARCHAR(255) NOT NULL,
+    last_seen_at DATETIME(6) NOT NULL,
+    CONSTRAINT uk_device_tokens_token UNIQUE (token)
+);
+
+CREATE TABLE notifications (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    user_id BIGINT NOT NULL,
+    type VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    body VARCHAR(500) NOT NULL,
+    ref_id BIGINT NULL,
+    read_at DATETIME(6) NULL,
+    INDEX idx_notifications_user (user_id, id)
+);
+```
+
+푸시를 켜려면 Firebase 콘솔에서 서비스 계정 키(JSON)를 받아 서버에 두고 `FCM_CREDENTIALS_PATH`에 경로를 적습니다. iOS는 Firebase 콘솔에 APNs 인증 키도 등록해야 합니다. 앱은 로그인·앱 실행 때마다 `POST /api/v1/notifications/tokens`로 토큰을 등록합니다.
 
 #### 기존 DB 마이그레이션 (청소구역 좌표 제거)
 

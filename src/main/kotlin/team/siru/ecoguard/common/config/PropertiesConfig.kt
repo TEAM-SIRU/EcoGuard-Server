@@ -11,6 +11,7 @@ import team.siru.ecoguard.auth.TeacherEmailProperties
 import team.siru.ecoguard.cleaningarea.CleaningAreaSeedProperties
 import team.siru.ecoguard.common.security.JwtProperties
 import team.siru.ecoguard.common.storage.FileStorageProperties
+import team.siru.ecoguard.notification.FcmProperties
 import team.siru.ecoguard.schoolcalendar.NeisProperties
 import team.siru.ecoguard.verification.VerificationProperties
 
@@ -28,5 +29,6 @@ import team.siru.ecoguard.verification.VerificationProperties
     NeisProperties::class,
     VerificationProperties::class,
     SwaggerProperties::class,
+    FcmProperties::class,
 )
 class PropertiesConfig

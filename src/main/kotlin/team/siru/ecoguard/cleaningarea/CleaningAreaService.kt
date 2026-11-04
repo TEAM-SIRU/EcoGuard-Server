@@ -1,5 +1,6 @@
 package team.siru.ecoguard.cleaningarea
 
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.siru.ecoguard.cleaningarea.dto.AreaMapResponse
@@ -9,6 +10,7 @@ import team.siru.ecoguard.cleaningarea.dto.MyAssignmentResponse
 import team.siru.ecoguard.cleaningarea.dto.UpdateAreaRequest
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
+import team.siru.ecoguard.notification.NotificationEvent
 import team.siru.ecoguard.user.Role
 import team.siru.ecoguard.user.UserRepository
 
@@ -17,6 +19,7 @@ class CleaningAreaService(
     private val cleaningAreaRepository: CleaningAreaRepository,
     private val assignmentRepository: AssignmentRepository,
     private val userRepository: UserRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     @Transactional(readOnly = true)
@@ -48,9 +51,9 @@ class CleaningAreaService(
             throw BusinessException(ErrorCode.ALREADY_ASSIGNED)
         }
 
-        return students
-            .map { assignmentRepository.save(Assignment(area = area, student = it)) }
-            .map(AssignmentResponse::from)
+        val assignments = students.map { assignmentRepository.save(Assignment(area = area, student = it)) }
+        eventPublisher.publishEvent(NotificationEvent.areaAssigned(students.map { it.id }, area.id, area.name))
+        return assignments.map(AssignmentResponse::from)
     }
 
     /**
@@ -62,6 +65,7 @@ class CleaningAreaService(
         val assignments = assignmentRepository.findByAreaIdAndStudentId(areaId, studentId)
         if (assignments.isEmpty()) throw BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND)
         assignmentRepository.deleteAll(assignments)
+        eventPublisher.publishEvent(NotificationEvent.areaUnassigned(studentId, areaId, assignments.first().area.name))
     }
 
     @Transactional(readOnly = true)
