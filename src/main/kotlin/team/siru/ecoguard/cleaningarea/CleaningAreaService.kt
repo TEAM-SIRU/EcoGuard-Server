@@ -1,5 +1,6 @@
 package team.siru.ecoguard.cleaningarea
 
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.siru.ecoguard.cleaningarea.dto.AreaMapResponse
@@ -9,6 +10,7 @@ import team.siru.ecoguard.cleaningarea.dto.MyAssignmentResponse
 import team.siru.ecoguard.cleaningarea.dto.UpdateAreaRequest
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
+import team.siru.ecoguard.notification.NotificationEvent
 import team.siru.ecoguard.user.Role
 import team.siru.ecoguard.user.UserRepository
 
@@ -17,6 +19,7 @@ class CleaningAreaService(
     private val cleaningAreaRepository: CleaningAreaRepository,
     private val assignmentRepository: AssignmentRepository,
     private val userRepository: UserRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     @Transactional(readOnly = true)
@@ -42,13 +45,19 @@ class CleaningAreaService(
                 .orElseThrow { BusinessException(ErrorCode.STUDENT_NOT_FOUND) }
         }
 
+        // 이미 이 구역에 있던 학생에게는 알리지 않는다.
+        val newlyAssignedIds = mutableListOf<Long>()
         val assignments = students.map { student ->
             val existing = assignmentRepository.findByStudentId(student.id)
             existing.firstOrNull { it.area.id == areaId }
                 ?: run {
                     assignmentRepository.deleteAll(existing)
+                    newlyAssignedIds += student.id
                     assignmentRepository.save(Assignment(area = area, student = student))
                 }
+        }
+        if (newlyAssignedIds.isNotEmpty()) {
+            eventPublisher.publishEvent(NotificationEvent.areaAssigned(newlyAssignedIds, area.id, area.name))
         }
         return assignments.map(AssignmentResponse::from)
     }
@@ -59,6 +68,7 @@ class CleaningAreaService(
         val assignment = assignmentRepository.findByAreaIdAndStudentId(areaId, studentId)
             ?: throw BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND)
         assignmentRepository.delete(assignment)
+        eventPublisher.publishEvent(NotificationEvent.areaUnassigned(studentId, areaId, assignment.area.name))
     }
 
     @Transactional(readOnly = true)

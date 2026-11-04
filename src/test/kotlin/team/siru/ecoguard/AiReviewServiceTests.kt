@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.TransactionStatus
@@ -88,6 +89,7 @@ class AiReviewServiceTests {
             TransactionTemplate(noOpTransactionManager),
             AiReviewQueueProperties(maxWaitSeconds = 300),
             clock,
+            Mockito.mock(ApplicationEventPublisher::class.java),
         )
     }
 
@@ -203,6 +205,7 @@ class AiReviewServiceTests {
         val service = AiReviewService(
             evaluator, verificationRepository, aiReviewRepository, activityService, fileStorageService,
             TransactionTemplate(noOpTransactionManager), AiReviewQueueProperties(), clock,
+            Mockito.mock(ApplicationEventPublisher::class.java),
         )
 
         service.processReview(verification.id, job)

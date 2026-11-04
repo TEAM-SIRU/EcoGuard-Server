@@ -1,5 +1,6 @@
 package team.siru.ecoguard.appeal
 
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
@@ -11,6 +12,7 @@ import team.siru.ecoguard.appeal.dto.MyAppealResponse
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.storage.FileStorageService
+import team.siru.ecoguard.notification.NotificationEvent
 import team.siru.ecoguard.user.UserRepository
 import team.siru.ecoguard.verification.VerificationRepository
 import team.siru.ecoguard.verification.VerificationStatus
@@ -25,6 +27,7 @@ class AppealService(
     private val userRepository: UserRepository,
     private val activityService: ActivityService,
     private val fileStorageService: FileStorageService,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     /**
@@ -97,6 +100,13 @@ class AppealService(
                 )
             }
         }
+        eventPublisher.publishEvent(
+            if (decision == AppealStatus.APPROVED) {
+                NotificationEvent.appealApproved(appeal.student.id, appeal.id)
+            } else {
+                NotificationEvent.appealRejected(appeal.student.id, appeal.id)
+            },
+        )
     }
 
     @Transactional(readOnly = true)

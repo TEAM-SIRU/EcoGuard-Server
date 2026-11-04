@@ -64,4 +64,7 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
     // notices
     TITLE_OR_CONTENT_EMPTY(HttpStatus.BAD_REQUEST, "제목 또는 내용을 입력해야 합니다."),
     NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 공지입니다."),
+
+    // notifications
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."),
 }

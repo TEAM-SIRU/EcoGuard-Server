@@ -1,6 +1,7 @@
 package team.siru.ecoguard.aireview
 
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
@@ -14,6 +15,7 @@ import team.siru.ecoguard.activity.ActivityService
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.storage.FileStorageService
+import team.siru.ecoguard.notification.NotificationEvent
 import team.siru.ecoguard.verification.VerificationRepository
 import team.siru.ecoguard.verification.VerificationStatus
 import java.time.Clock
@@ -31,6 +33,7 @@ class AiReviewService(
     private val transactionTemplate: TransactionTemplate,
     private val queueProperties: AiReviewQueueProperties,
     private val clock: Clock,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -134,11 +137,13 @@ class AiReviewService(
                         areaName = verification.area.name,
                         date = verification.verificationDate,
                     )
+                    eventPublisher.publishEvent(NotificationEvent.verificationApproved(verification.student.id, verification.id))
                 } else {
                     verification.failReasons = (response.failReasons ?: emptyList()).toMutableList()
                     verification.status = VerificationStatus.MANUAL_REVIEW
                     verification.manualReviewReason =
                         (if (response.isPassed == null) ManualReviewReason.AI_ERROR else ManualReviewReason.AI_FAILED).name
+                    eventPublisher.publishEvent(NotificationEvent.verificationManualReview(verification.student.id, verification.id))
                 }
             }
 
@@ -153,6 +158,7 @@ class AiReviewService(
                 verification.failReasons = outcome.failReasons.toMutableList()
                 verification.status = VerificationStatus.MANUAL_REVIEW
                 verification.manualReviewReason = outcome.reason.name
+                eventPublisher.publishEvent(NotificationEvent.verificationManualReview(verification.student.id, verification.id))
             }
         }
     }
@@ -180,8 +186,10 @@ class AiReviewService(
                 areaName = verification.area.name,
                 date = verification.verificationDate,
             )
+            eventPublisher.publishEvent(NotificationEvent.verificationApproved(verification.student.id, verification.id))
         } else {
             verification.status = VerificationStatus.REJECTED
+            eventPublisher.publishEvent(NotificationEvent.verificationRejected(verification.student.id, verification.id))
         }
     }
 

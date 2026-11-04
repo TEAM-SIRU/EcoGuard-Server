@@ -11,6 +11,7 @@ import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.security.JwtTokenProvider
 import team.siru.ecoguard.common.security.TokenRevocationChecker
+import team.siru.ecoguard.notification.DeviceTokenRepository
 import team.siru.ecoguard.user.User
 import team.siru.ecoguard.user.UserRepository
 
@@ -23,6 +24,7 @@ class AuthService(
     private val jwtTokenProvider: JwtTokenProvider,
     private val tokenRevocationChecker: TokenRevocationChecker,
     private val transactionTemplate: TransactionTemplate,
+    private val deviceTokenRepository: DeviceTokenRepository,
 ) {
 
     fun login(authCode: String, redirectUri: String? = null): LoginResponse {
@@ -88,5 +90,7 @@ class AuthService(
     fun logout(userId: Long) {
         val user = userRepository.findById(userId).orElseThrow { BusinessException(ErrorCode.UNAUTHORIZED) }
         user.tokensValidAfter = System.currentTimeMillis()
+        // 로그아웃하면 모든 기기의 로그인이 풀리므로, 푸시도 더 이상 보내지 않는다.
+        deviceTokenRepository.deleteByUserId(userId)
     }
 }
