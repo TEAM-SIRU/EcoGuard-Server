@@ -9,4 +9,6 @@ enum class NotificationType {
     APPEAL_REJECTED,
     AREA_ASSIGNED,
     AREA_UNASSIGNED,
+    NOTICE_CREATED,
+    RECRUITMENT_CREATED,
 }

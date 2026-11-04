@@ -30,22 +30,30 @@ class NotificationService(
         val idByUser = saved.associate { it.userId to it.id }
 
         val tokensByUser = deviceTokenRepository.findByUserIdIn(userIds).groupBy({ it.userId }, { it.token })
-        // 푸시 data 에는 알림 id 도 실어서, 앱이 알림을 눌렀을 때 알림함의 읽음 처리를 같이 할 수 있다.
-        tokensByUser.forEach { (userId, tokens) ->
-            val message = PushMessage(
-                title = event.title,
-                body = event.body,
-                data = buildMap {
-                    put("type", event.type.name)
-                    event.refId?.let { put("refId", it.toString()) }
-                    idByUser[userId]?.let { put("notificationId", it.toString()) }
-                },
-            )
-            val dead = pushSender.send(tokens, message)
-            if (dead.isNotEmpty()) {
-                deviceTokenRepository.deleteByTokenIn(dead)
-                log.info("사용할 수 없는 푸시 토큰 {}개를 삭제했습니다.", dead.size)
-            }
+        if (userIds.size == 1) {
+            // 한 명에게 가는 알림은 알림함 id 도 실어서, 앱이 알림을 눌렀을 때 읽음 처리를 같이 할 수 있다.
+            tokensByUser.forEach { (userId, tokens) -> push(tokens, event, idByUser[userId]) }
+        } else {
+            // 여러 명에게 가는 알림(공지·모집·여러 학생 배정)은 FCM 호출을 줄이려고 토큰을 모아 한 번에 보낸다.
+            push(tokensByUser.values.flatten(), event, notificationId = null)
+        }
+    }
+
+    private fun push(tokens: List<String>, event: NotificationEvent, notificationId: Long?) {
+        if (tokens.isEmpty()) return
+        val message = PushMessage(
+            title = event.title,
+            body = event.body,
+            data = buildMap {
+                put("type", event.type.name)
+                event.refId?.let { put("refId", it.toString()) }
+                notificationId?.let { put("notificationId", it.toString()) }
+            },
+        )
+        val dead = pushSender.send(tokens, message)
+        if (dead.isNotEmpty()) {
+            deviceTokenRepository.deleteByTokenIn(dead)
+            log.info("사용할 수 없는 푸시 토큰 {}개를 삭제했습니다.", dead.size)
         }
     }
 

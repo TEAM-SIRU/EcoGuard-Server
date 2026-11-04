@@ -1,5 +1,6 @@
 package team.siru.ecoguard.recruitment
 
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.siru.ecoguard.cleaningarea.AssignmentRepository
@@ -14,6 +15,8 @@ import team.siru.ecoguard.recruitment.dto.CreateRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.CurrentRecruitmentResponse
 import team.siru.ecoguard.recruitment.dto.RecruitmentSummaryResponse
 import team.siru.ecoguard.recruitment.dto.UpdateRecruitmentRequest
+import team.siru.ecoguard.notification.NotificationEvent
+import team.siru.ecoguard.user.Role
 import team.siru.ecoguard.user.UserRepository
 import java.time.Clock
 import java.time.LocalDateTime
@@ -28,6 +31,7 @@ class RecruitmentService(
     private val userRepository: UserRepository,
     private val assignmentRepository: AssignmentRepository,
     private val clock: Clock,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     @Transactional
@@ -56,6 +60,11 @@ class RecruitmentService(
                 activityStartTime = request.activityStartTime,
                 activityEndTime = request.activityEndTime,
             ),
+        )
+        // 모집은 학년·반별이라 그 학급 학생에게만 알린다.
+        val classStudentIds = userRepository.findIdsByRoleAndClass(Role.STUDENT, recruitment.grade, recruitment.classNo)
+        eventPublisher.publishEvent(
+            NotificationEvent.recruitmentCreated(classStudentIds, recruitment.id, recruitment.grade, recruitment.classNo),
         )
         return CreateRecruitmentResponse(recruitment.id)
     }

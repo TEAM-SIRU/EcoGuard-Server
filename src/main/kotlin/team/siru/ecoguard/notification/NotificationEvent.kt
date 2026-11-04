@@ -12,6 +12,8 @@ data class NotificationEvent(
     val refId: Long? = null,
 ) {
     companion object {
+        private const val NOTICE_TITLE_MAX = 100
+
         fun verificationApproved(studentId: Long, verificationId: Long) = NotificationEvent(
             listOf(studentId), NotificationType.VERIFICATION_APPROVED,
             "청소 인증 승인", "청소 인증이 승인되어 봉사시간이 적립됐어요.", verificationId,
@@ -40,6 +42,16 @@ data class NotificationEvent(
         fun areaAssigned(studentIds: List<Long>, areaId: Long, areaName: String) = NotificationEvent(
             studentIds, NotificationType.AREA_ASSIGNED,
             "청소 구역 배정", "${areaName}에 배정됐어요.", areaId,
+        )
+
+        fun noticeCreated(studentIds: List<Long>, noticeId: Long, title: String) = NotificationEvent(
+            studentIds, NotificationType.NOTICE_CREATED,
+            "새 공지", title.take(NOTICE_TITLE_MAX), noticeId,
+        )
+
+        fun recruitmentCreated(studentIds: List<Long>, recruitmentId: Long, grade: Int, classNo: Int) = NotificationEvent(
+            studentIds, NotificationType.RECRUITMENT_CREATED,
+            "청소 모집 시작", "${grade}학년 ${classNo}반 청소 모집이 시작됐어요.", recruitmentId,
         )
 
         fun areaUnassigned(studentId: Long, areaId: Long, areaName: String) = NotificationEvent(

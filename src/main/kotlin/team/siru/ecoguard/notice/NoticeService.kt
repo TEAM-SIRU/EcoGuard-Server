@@ -1,5 +1,6 @@
 package team.siru.ecoguard.notice
 
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.siru.ecoguard.common.exception.BusinessException
@@ -9,6 +10,8 @@ import team.siru.ecoguard.notice.dto.CreateNoticeResponse
 import team.siru.ecoguard.notice.dto.NoticeDetailResponse
 import team.siru.ecoguard.notice.dto.NoticeListItemResponse
 import team.siru.ecoguard.notice.dto.UpdateNoticeRequest
+import team.siru.ecoguard.notification.NotificationEvent
+import team.siru.ecoguard.user.Role
 import team.siru.ecoguard.user.UserRepository
 
 @Service
@@ -17,6 +20,7 @@ class NoticeService(
     private val userRepository: UserRepository,
     private val noticeReadRepository: NoticeReadRepository,
     private val noticeReadRecorder: NoticeReadRecorder,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     @Transactional
@@ -26,6 +30,9 @@ class NoticeService(
         }
         val teacher = userRepository.findById(teacherId).orElseThrow { BusinessException(ErrorCode.USER_NOT_FOUND) }
         val notice = noticeRepository.save(Notice(title = request.title, content = request.content, teacher = teacher))
+        eventPublisher.publishEvent(
+            NotificationEvent.noticeCreated(userRepository.findIdsByRole(Role.STUDENT), notice.id, notice.title),
+        )
         return CreateNoticeResponse(notice.id)
     }
 
