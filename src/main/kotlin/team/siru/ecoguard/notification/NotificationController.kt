@@ -18,6 +18,9 @@ import team.siru.ecoguard.notification.dto.NotificationListResponse
 import team.siru.ecoguard.notification.dto.NotificationResponse
 import team.siru.ecoguard.notification.dto.RegisterTokenRequest
 import team.siru.ecoguard.notification.dto.RemoveTokenRequest
+import team.siru.ecoguard.notification.dto.NotificationSettingResponse
+import team.siru.ecoguard.notification.dto.UpdateNotificationSettingRequest
+import org.springframework.web.bind.annotation.PutMapping
 
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -50,6 +53,20 @@ class NotificationController(
                 notifications = notificationService.getMyNotifications(userId, limit).map(NotificationResponse::from),
             ),
         )
+    }
+
+    /** 알림 종류별 푸시 수신 여부. 설정한 적 없는 종류는 켜져 있다. 꺼도 알림함에는 계속 쌓인다. */
+    @GetMapping("/settings")
+    fun getSettings(): ResponseEntity<List<NotificationSettingResponse>> =
+        ResponseEntity.ok(
+            notificationService.getSettings(SecurityUtils.currentUserId())
+                .map { (category, enabled) -> NotificationSettingResponse(category, category.label, enabled) },
+        )
+
+    @PutMapping("/settings")
+    fun updateSetting(@Valid @RequestBody request: UpdateNotificationSettingRequest): ResponseEntity<Void> {
+        notificationService.updateSetting(SecurityUtils.currentUserId(), request.category!!, request.enabled!!)
+        return ResponseEntity.ok().build()
     }
 
     @PatchMapping("/{notificationId}/read")

@@ -13,6 +13,7 @@ import java.time.LocalDateTime
 class NotificationService(
     private val notificationRepository: NotificationRepository,
     private val deviceTokenRepository: DeviceTokenRepository,
+    private val settingRepository: NotificationSettingRepository,
     private val pushSender: PushSender,
     private val clock: Clock,
 ) {
@@ -29,7 +30,12 @@ class NotificationService(
         )
         val idByUser = saved.associate { it.userId to it.id }
 
-        val tokensByUser = deviceTokenRepository.findByUserIdIn(userIds).groupBy({ it.userId }, { it.token })
+        // 알림함에는 모두 남기고, 이 종류의 푸시를 끈 사용자에게만 푸시를 보내지 않는다.
+        val muted = settingRepository.findDisabledUserIds(event.type.category, userIds).toSet()
+        val pushTargets = userIds.filterNot { it in muted }
+        if (pushTargets.isEmpty()) return
+
+        val tokensByUser = deviceTokenRepository.findByUserIdIn(pushTargets).groupBy({ it.userId }, { it.token })
         if (userIds.size == 1) {
             // 한 명에게 가는 알림은 알림함 id 도 실어서, 앱이 알림을 눌렀을 때 읽음 처리를 같이 할 수 있다.
             tokensByUser.forEach { (userId, tokens) -> push(tokens, event, idByUser[userId]) }
@@ -74,6 +80,23 @@ class NotificationService(
     fun removeToken(userId: Long, token: String) = deviceTokenRepository.deleteByUserIdAndToken(userId, token)
 
     fun removeAllTokens(userId: Long) = deviceTokenRepository.deleteByUserId(userId)
+
+    /** 모든 카테고리의 수신 여부. 설정한 적 없는 카테고리는 켜진 것으로 돌려준다. */
+    @Transactional(readOnly = true)
+    fun getSettings(userId: Long): Map<NotificationCategory, Boolean> {
+        val saved = settingRepository.findByUserId(userId).associate { it.category to it.enabled }
+        return NotificationCategory.entries.associateWith { saved[it] ?: true }
+    }
+
+    @Transactional
+    fun updateSetting(userId: Long, category: NotificationCategory, enabled: Boolean) {
+        val existing = settingRepository.findByUserIdAndCategory(userId, category)
+        if (existing == null) {
+            settingRepository.save(NotificationSetting(userId, category, enabled))
+        } else {
+            existing.enabled = enabled
+        }
+    }
 
     /** 60일 넘게 갱신되지 않은 토큰을 지운다. */
     fun purgeStaleTokens(): Int = deviceTokenRepository.deleteStale(LocalDateTime.now(clock).minusDays(STALE_TOKEN_DAYS))

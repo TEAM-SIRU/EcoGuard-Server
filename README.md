@@ -330,7 +330,7 @@ TEACHER_EMAILS=                                # 선택, 쉼표로 구분한 이
 
 #### 기존 DB 마이그레이션 (푸시 알림)
 
-FCM 푸시 알림을 위해 `device_tokens`(기기 토큰), `notifications`(앱 안 알림함) 테이블이 새로 생깁니다. 운영은 `DDL_AUTO=validate`라서 이 버전을 배포하기 **전에** 기존 DB에서 한 번 실행합니다.
+FCM 푸시 알림을 위해 `device_tokens`(기기 토큰), `notifications`(앱 안 알림함), `notification_settings`(알림 종류별 수신 설정) 테이블이 새로 생깁니다. 운영은 `DDL_AUTO=validate`라서 이 버전을 배포하기 **전에** 기존 DB에서 한 번 실행합니다.
 
 ```sql
 CREATE TABLE device_tokens (
@@ -355,6 +355,16 @@ CREATE TABLE notifications (
     ref_id BIGINT NULL,
     read_at DATETIME(6) NULL,
     INDEX idx_notifications_user (user_id, id)
+);
+
+CREATE TABLE notification_settings (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    user_id BIGINT NOT NULL,
+    category VARCHAR(255) NOT NULL,
+    enabled BIT NOT NULL,
+    CONSTRAINT uk_notification_settings_user_category UNIQUE (user_id, category)
 );
 ```
 
