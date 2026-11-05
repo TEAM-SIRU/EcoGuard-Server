@@ -1,9 +1,11 @@
 package team.siru.ecoguard.notification
 
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.user.Role
@@ -17,6 +19,7 @@ class NotificationService(
     private val deviceTokenRepository: DeviceTokenRepository,
     private val settingRepository: NotificationSettingRepository,
     private val userRepository: UserRepository,
+    private val transactionTemplate: TransactionTemplate,
     private val pushSender: PushSender,
     private val clock: Clock,
 ) {
@@ -67,9 +70,20 @@ class NotificationService(
         }
     }
 
-    /** 같은 토큰이 이미 있으면 주인과 플랫폼을 새 값으로 바꾼다(기기를 다른 계정이 이어 쓰는 경우). */
-    @Transactional
+    /**
+     * 같은 토큰이 이미 있으면 주인과 플랫폼을 새 값으로 바꾼다(기기를 다른 계정이 이어 쓰는 경우).
+     * 앱이 실행·로그인마다 호출하므로 같은 새 토큰이 동시에 들어올 수 있다. 한쪽이 유니크 제약에 걸리면
+     * (트랜잭션은 이미 롤백 표시되므로) 새 트랜잭션에서 한 번 더 시도해 먼저 저장된 행을 갱신한다.
+     */
     fun registerToken(userId: Long, token: String, platform: DevicePlatform) {
+        try {
+            transactionTemplate.executeWithoutResult { upsertToken(userId, token, platform) }
+        } catch (e: DataIntegrityViolationException) {
+            transactionTemplate.executeWithoutResult { upsertToken(userId, token, platform) }
+        }
+    }
+
+    private fun upsertToken(userId: Long, token: String, platform: DevicePlatform) {
         val now = LocalDateTime.now(clock)
         val existing = deviceTokenRepository.findByToken(token)
         if (existing == null) {

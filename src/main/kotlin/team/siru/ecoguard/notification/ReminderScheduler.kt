@@ -14,8 +14,8 @@ class ReminderScheduler(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** 평일 05~20시에 매분 확인한다. 구역별 알림 시각과 맞는 분에만 실제로 보낸다. */
-    @Scheduled(cron = "0 * 5-20 * * MON-FRI", zone = "Asia/Seoul")
+    /** 평일 매분 확인한다. 구역별 알림 시각(구역마다 인증 시간이 다를 수 있다)과 맞는 분에만 실제로 보낸다. */
+    @Scheduled(cron = "0 * * * * MON-FRI", zone = "Asia/Seoul")
     fun run() {
         try {
             reminderService.sendReminders(LocalDateTime.now(clock))

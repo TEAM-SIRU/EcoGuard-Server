@@ -379,4 +379,24 @@ class NotificationIntegrationTests @Autowired constructor(
             notificationService.updateSetting(teacher.id, Role.TEACHER, NotificationCategory.NOTICE, false)
         }
     }
+
+    @Test
+    fun `concurrent registrations of the same new token all succeed and leave one row`() {
+        val threads = 8
+        val start = java.util.concurrent.CountDownLatch(1)
+        val errors = CopyOnWriteArrayList<Throwable>()
+        val workers = (1..threads).map { i ->
+            Thread {
+                start.await()
+                runCatching {
+                    notificationService.registerToken(if (i % 2 == 0) student.id else other.id, "racing-token", DevicePlatform.ANDROID)
+                }.onFailure { errors += it }
+            }.also { it.start() }
+        }
+        start.countDown()
+        workers.forEach { it.join(10_000) }
+
+        assertTrue(errors.isEmpty(), "등록이 실패하면 안 됩니다: $errors")
+        assertEquals(1, deviceTokenRepository.count())
+    }
 }

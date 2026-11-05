@@ -17,7 +17,7 @@ class NotificationListener(
      * 알림을 만든 트랜잭션이 커밋된 뒤에, 별도 스레드에서 처리한다. 롤백되면 알림도 나가지 않고,
      * 알림이 실패해도 본래 업무(승인·적립 등)는 영향받지 않는다.
      */
-    @Async
+    @Async(NOTIFICATION_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     fun on(event: NotificationEvent) {
         try {

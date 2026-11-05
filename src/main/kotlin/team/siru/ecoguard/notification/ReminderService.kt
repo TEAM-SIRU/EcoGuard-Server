@@ -9,7 +9,9 @@ import team.siru.ecoguard.cleaningarea.CleaningArea
 import team.siru.ecoguard.schoolcalendar.VacationService
 import team.siru.ecoguard.verification.CleaningTimeWindow
 import team.siru.ecoguard.verification.VerificationRepository
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 
 /**
@@ -40,22 +42,30 @@ class ReminderService(
 
         var sent = 0
         studentIdsByArea.forEach { (area, rawIds) ->
-            val (start, end) = CleaningTimeWindow.parse(area.cleanTime)
-            val studentIds = rawIds.distinct()
-            when (time) {
-                start.minusMinutes(START_LEAD_MINUTES) -> {
-                    publish(NotificationEvent.cleaningStartReminder(studentIds, area.id, area.name, end), studentIds)
-                    sent += studentIds.size
-                }
+            // 한 구역의 데이터 문제가 다른 구역의 알림을 막지 않도록 구역마다 따로 처리한다.
+            try {
+                sent += remindArea(area, rawIds.distinct(), today, time)
+            } catch (e: Exception) {
+                log.error("구역 리마인더 처리에 실패했습니다 (areaId={})", area.id, e)
+            }
+        }
+        return sent
+    }
 
-                end.minusMinutes(DEADLINE_LEAD_MINUTES) -> {
-                    val submitted = verificationRepository.findSubmittedStudentIds(today, studentIds).toSet()
-                    val pending = studentIds.filterNot { it in submitted }
-                    if (pending.isNotEmpty()) {
-                        publish(NotificationEvent.cleaningDeadlineReminder(pending, area.id, area.name, end), pending)
-                        sent += pending.size
-                    }
-                }
+    /** 시작 알림과 마감 알림은 서로 독립이다. 인증 시간이 5분이라 두 시각이 같은 분이어도 둘 다 보낸다. */
+    private fun remindArea(area: CleaningArea, studentIds: List<Long>, today: LocalDate, time: LocalTime): Int {
+        val (start, end) = CleaningTimeWindow.parse(area.cleanTime)
+        var sent = 0
+        if (time == start.minusMinutes(START_LEAD_MINUTES)) {
+            publish(NotificationEvent.cleaningStartReminder(studentIds, area.id, area.name, end), studentIds)
+            sent += studentIds.size
+        }
+        if (time == end.minusMinutes(DEADLINE_LEAD_MINUTES)) {
+            val submitted = verificationRepository.findSubmittedStudentIds(today, studentIds).toSet()
+            val pending = studentIds.filterNot { it in submitted }
+            if (pending.isNotEmpty()) {
+                publish(NotificationEvent.cleaningDeadlineReminder(pending, area.id, area.name, end), pending)
+                sent += pending.size
             }
         }
         return sent

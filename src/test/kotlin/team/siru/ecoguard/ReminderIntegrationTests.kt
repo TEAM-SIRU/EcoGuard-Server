@@ -77,7 +77,7 @@ class ReminderIntegrationTests @Autowired constructor(
         cleaningAreaRepository.findAll().filter { it.zoneCode.startsWith("rem_zone") }.forEach(cleaningAreaRepository::delete)
         notificationRepository.deleteAll()
         deviceTokenRepository.deleteAll()
-        userRepository.findAll().filter { it.gsmAccountId in 9101L..9103L }.forEach(userRepository::delete)
+        userRepository.findAll().filter { it.gsmAccountId in 9101L..9104L }.forEach(userRepository::delete)
         pushSender.sent.clear()
     }
 
@@ -126,5 +126,21 @@ class ReminderIntegrationTests @Autowired constructor(
 
         assertEquals(0, notificationRepository.count())
         assertTrue(pushSender.sent.isEmpty())
+    }
+
+    @Test
+    fun `start and deadline reminders both go out when they fall on the same minute`() {
+        // 인증 시간이 5분이면 시작 10분 전과 마감 15분 전이 같은 07:10 이다.
+        val shortArea = cleaningAreaRepository.save(
+            CleaningArea(zoneCode = "rem_zone_short", name = "짧은 구역", cleanTime = "07:20~07:25", isActive = true),
+        )
+        val shortStudent = student(9104L, "1104")
+        assignmentRepository.save(Assignment(shortArea, shortStudent))
+
+        reminderService.sendReminders(LocalDateTime.of(monday, java.time.LocalTime.of(7, 10)))
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline && inbox(shortStudent).size < 2) Thread.sleep(50)
+
+        assertEquals(2, inbox(shortStudent).size)
     }
 }
