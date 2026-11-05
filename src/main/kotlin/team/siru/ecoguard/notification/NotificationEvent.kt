@@ -1,5 +1,6 @@
 package team.siru.ecoguard.notification
 
+import team.siru.ecoguard.user.Role
 import java.time.LocalTime
 
 /**
@@ -12,6 +13,8 @@ data class NotificationEvent(
     val title: String,
     val body: String,
     val refId: Long? = null,
+    /** 지정하면 [userIds] 에 더해 이 역할의 모든 사용자에게 보낸다(예: 교사 전원). */
+    val audience: Role? = null,
 ) {
     companion object {
         private const val NOTICE_TITLE_MAX = 100
@@ -66,6 +69,24 @@ data class NotificationEvent(
         fun cleaningDeadlineReminder(studentIds: List<Long>, areaId: Long, areaName: String, endTime: LocalTime) = NotificationEvent(
             studentIds, NotificationType.CLEANING_REMINDER,
             "청소 인증 마감이 다가와요", "${endTime}까지 인증하지 않으면 오늘은 인증할 수 없어요. (${areaName})", areaId,
+        )
+
+        /** 교사 전원에게: 수동 검토가 필요한 인증이 생겼다. */
+        fun manualReviewPending(verificationId: Long, studentName: String, areaName: String) = NotificationEvent(
+            emptyList(), NotificationType.MANUAL_REVIEW_PENDING,
+            "검토할 인증이 있어요", "$studentName · ${areaName} 인증을 확인해 주세요.", verificationId, Role.TEACHER,
+        )
+
+        /** 교사 전원에게: 시간 초과 등으로 수동 검토로 넘어간 인증이 여러 건 생겼다. */
+        fun manualReviewPendingBatch(count: Int) = NotificationEvent(
+            emptyList(), NotificationType.MANUAL_REVIEW_PENDING,
+            "검토할 인증이 있어요", "수동 검토를 기다리는 인증이 ${count}건 늘었어요.", null, Role.TEACHER,
+        )
+
+        /** 교사 전원에게: 학생이 이의신청을 냈다. */
+        fun appealReceived(appealId: Long, studentName: String) = NotificationEvent(
+            emptyList(), NotificationType.APPEAL_RECEIVED,
+            "새 이의신청이 있어요", "${studentName} 학생이 이의신청을 보냈어요.", appealId, Role.TEACHER,
         )
 
         fun areaUnassigned(studentId: Long, areaId: Long, areaName: String) = NotificationEvent(

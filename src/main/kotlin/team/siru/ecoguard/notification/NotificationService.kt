@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
+import team.siru.ecoguard.user.Role
+import team.siru.ecoguard.user.UserRepository
 import java.time.Clock
 import java.time.LocalDateTime
 
@@ -14,6 +16,7 @@ class NotificationService(
     private val notificationRepository: NotificationRepository,
     private val deviceTokenRepository: DeviceTokenRepository,
     private val settingRepository: NotificationSettingRepository,
+    private val userRepository: UserRepository,
     private val pushSender: PushSender,
     private val clock: Clock,
 ) {
@@ -22,7 +25,8 @@ class NotificationService(
 
     /** 알림함에 기록하고 푸시를 보낸다. FCM 호출이 DB 트랜잭션을 붙잡지 않도록 이 메서드 자체는 트랜잭션이 아니다. */
     fun deliver(event: NotificationEvent) {
-        val userIds = event.userIds.distinct()
+        val audienceIds = event.audience?.let { userRepository.findIdsByRole(it) }.orEmpty()
+        val userIds = (event.userIds + audienceIds).distinct()
         if (userIds.isEmpty()) return
 
         val saved = notificationRepository.saveAll(
@@ -81,15 +85,16 @@ class NotificationService(
 
     fun removeAllTokens(userId: Long) = deviceTokenRepository.deleteByUserId(userId)
 
-    /** 모든 카테고리의 수신 여부. 설정한 적 없는 카테고리는 켜진 것으로 돌려준다. */
+    /** [role] 이 설정할 수 있는 카테고리의 수신 여부. 설정한 적 없는 카테고리는 켜진 것으로 돌려준다. */
     @Transactional(readOnly = true)
-    fun getSettings(userId: Long): Map<NotificationCategory, Boolean> {
+    fun getSettings(userId: Long, role: Role): Map<NotificationCategory, Boolean> {
         val saved = settingRepository.findByUserId(userId).associate { it.category to it.enabled }
-        return NotificationCategory.entries.associateWith { saved[it] ?: true }
+        return NotificationCategory.entries.filter { it.audience == role }.associateWith { saved[it] ?: true }
     }
 
     @Transactional
-    fun updateSetting(userId: Long, category: NotificationCategory, enabled: Boolean) {
+    fun updateSetting(userId: Long, role: Role, category: NotificationCategory, enabled: Boolean) {
+        if (category.audience != role) throw BusinessException(ErrorCode.INVALID_NOTIFICATION_CATEGORY)
         val existing = settingRepository.findByUserIdAndCategory(userId, category)
         if (existing == null) {
             settingRepository.save(NotificationSetting(userId, category, enabled))

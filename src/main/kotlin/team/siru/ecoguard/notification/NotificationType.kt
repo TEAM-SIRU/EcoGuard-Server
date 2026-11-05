@@ -12,4 +12,6 @@ enum class NotificationType(val category: NotificationCategory) {
     NOTICE_CREATED(NotificationCategory.NOTICE),
     RECRUITMENT_CREATED(NotificationCategory.RECRUITMENT),
     CLEANING_REMINDER(NotificationCategory.REMINDER),
+    MANUAL_REVIEW_PENDING(NotificationCategory.REVIEW_QUEUE),
+    APPEAL_RECEIVED(NotificationCategory.APPEAL_INBOX),
 }

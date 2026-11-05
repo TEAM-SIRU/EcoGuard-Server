@@ -18,6 +18,7 @@ import team.siru.ecoguard.notification.dto.NotificationListResponse
 import team.siru.ecoguard.notification.dto.NotificationResponse
 import team.siru.ecoguard.notification.dto.RegisterTokenRequest
 import team.siru.ecoguard.notification.dto.RemoveTokenRequest
+import team.siru.ecoguard.user.Role
 import team.siru.ecoguard.notification.dto.NotificationSettingResponse
 import team.siru.ecoguard.notification.dto.UpdateNotificationSettingRequest
 import org.springframework.web.bind.annotation.PutMapping
@@ -59,13 +60,17 @@ class NotificationController(
     @GetMapping("/settings")
     fun getSettings(): ResponseEntity<List<NotificationSettingResponse>> =
         ResponseEntity.ok(
-            notificationService.getSettings(SecurityUtils.currentUserId())
+            notificationService.getSettings(SecurityUtils.currentUserId(), currentRole())
                 .map { (category, enabled) -> NotificationSettingResponse(category, category.label, enabled) },
         )
 
+    /** 설정 화면에 보이는 알림 종류는 역할(학생·교사)마다 다르다. */
+    private fun currentRole() = if (SecurityUtils.hasRole(Role.TEACHER)) Role.TEACHER else Role.STUDENT
+
+    @ApiErrors(ErrorCode.INVALID_NOTIFICATION_CATEGORY)
     @PutMapping("/settings")
     fun updateSetting(@Valid @RequestBody request: UpdateNotificationSettingRequest): ResponseEntity<Void> {
-        notificationService.updateSetting(SecurityUtils.currentUserId(), request.category!!, request.enabled!!)
+        notificationService.updateSetting(SecurityUtils.currentUserId(), currentRole(), request.category!!, request.enabled!!)
         return ResponseEntity.ok().build()
     }
 

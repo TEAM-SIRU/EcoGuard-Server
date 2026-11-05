@@ -97,7 +97,7 @@ class NotificationIntegrationTests @Autowired constructor(
         settingRepository.deleteAll()
         notificationRepository.deleteAll()
         deviceTokenRepository.deleteAll()
-        userRepository.findAll().filter { it.gsmAccountId in listOf(9001L, 9002L, 9003L, 9004L) }.forEach(userRepository::delete)
+        userRepository.findAll().filter { it.gsmAccountId in listOf(9001L, 9002L, 9003L, 9004L, 9005L) }.forEach(userRepository::delete)
         pushSender.sent.clear()
         pushSender.dead.clear()
     }
@@ -273,24 +273,24 @@ class NotificationIntegrationTests @Autowired constructor(
 
     @Test
     fun `settings default to enabled and can be toggled per category`() {
-        val initial = notificationService.getSettings(student.id)
-        assertEquals(NotificationCategory.entries.toSet(), initial.keys)
+        val initial = notificationService.getSettings(student.id, Role.STUDENT)
+        assertEquals(NotificationCategory.entries.filter { it.audience == Role.STUDENT }.toSet(), initial.keys)
         assertTrue(initial.values.all { it })
 
-        notificationService.updateSetting(student.id, NotificationCategory.NOTICE, false)
-        assertEquals(false, notificationService.getSettings(student.id)[NotificationCategory.NOTICE])
-        assertEquals(true, notificationService.getSettings(student.id)[NotificationCategory.APPEAL])
-        assertEquals(true, notificationService.getSettings(other.id)[NotificationCategory.NOTICE])
+        notificationService.updateSetting(student.id, Role.STUDENT, NotificationCategory.NOTICE, false)
+        assertEquals(false, notificationService.getSettings(student.id, Role.STUDENT)[NotificationCategory.NOTICE])
+        assertEquals(true, notificationService.getSettings(student.id, Role.STUDENT)[NotificationCategory.APPEAL])
+        assertEquals(true, notificationService.getSettings(other.id, Role.STUDENT)[NotificationCategory.NOTICE])
 
-        notificationService.updateSetting(student.id, NotificationCategory.NOTICE, true)
-        assertEquals(true, notificationService.getSettings(student.id)[NotificationCategory.NOTICE])
+        notificationService.updateSetting(student.id, Role.STUDENT, NotificationCategory.NOTICE, true)
+        assertEquals(true, notificationService.getSettings(student.id, Role.STUDENT)[NotificationCategory.NOTICE])
         assertEquals(1, settingRepository.findByUserId(student.id).size)
     }
 
     @Test
     fun `a muted category keeps the inbox entry but sends no push`() {
         notificationService.registerToken(student.id, "token-a", DevicePlatform.ANDROID)
-        notificationService.updateSetting(student.id, NotificationCategory.VERIFICATION, false)
+        notificationService.updateSetting(student.id, Role.STUDENT, NotificationCategory.VERIFICATION, false)
 
         transactionTemplate.executeWithoutResult {
             publisher.publishEvent(NotificationEvent.verificationApproved(student.id, 1L))
@@ -316,7 +316,7 @@ class NotificationIntegrationTests @Autowired constructor(
     fun `a broadcast skips only the students who muted that category`() {
         notificationService.registerToken(student.id, "token-s1", DevicePlatform.ANDROID)
         notificationService.registerToken(other.id, "token-s2", DevicePlatform.ANDROID)
-        notificationService.updateSetting(other.id, NotificationCategory.NOTICE, false)
+        notificationService.updateSetting(other.id, Role.STUDENT, NotificationCategory.NOTICE, false)
 
         noticeService.create(teacher.id, CreateNoticeRequest("공지", "내용"))
         awaitNotifications(student.id, 1)
@@ -325,5 +325,58 @@ class NotificationIntegrationTests @Autowired constructor(
 
         assertEquals(listOf("token-s1"), pushSender.sent.single().first)
         assertEquals(1, notificationService.getMyNotifications(other.id, 50).size)
+    }
+
+    @Test
+    fun `manual review request reaches every teacher but no student`() {
+        val secondTeacher = userRepository.save(User(9005L, "t2@gsm.hs.kr", "선생님2", Role.TEACHER))
+        notificationService.registerToken(teacher.id, "token-t1", DevicePlatform.WEB)
+        notificationService.registerToken(secondTeacher.id, "token-t2", DevicePlatform.WEB)
+        notificationService.registerToken(student.id, "token-s1", DevicePlatform.ANDROID)
+
+        transactionTemplate.executeWithoutResult {
+            publisher.publishEvent(NotificationEvent.manualReviewPending(55L, "김학생", "본관 계단 A"))
+        }
+        awaitNotifications(teacher.id, 1)
+        awaitNotifications(secondTeacher.id, 1)
+        Thread.sleep(200)
+
+        val (tokens, message) = pushSender.sent.single()
+        assertEquals(setOf("token-t1", "token-t2"), tokens.toSet())
+        assertEquals("MANUAL_REVIEW_PENDING", message.data["type"])
+        assertEquals("55", message.data["refId"])
+        assertTrue(message.body.contains("김학생"))
+        assertEquals(0, notificationService.getMyNotifications(student.id, 50).size)
+
+        userRepository.delete(secondTeacher)
+    }
+
+    @Test
+    fun `teachers can mute their own categories`() {
+        notificationService.registerToken(teacher.id, "token-t1", DevicePlatform.WEB)
+        notificationService.updateSetting(teacher.id, Role.TEACHER, NotificationCategory.APPEAL_INBOX, false)
+
+        transactionTemplate.executeWithoutResult {
+            publisher.publishEvent(NotificationEvent.appealReceived(9L, "김학생"))
+        }
+        awaitNotifications(teacher.id, 1)
+        Thread.sleep(200)
+
+        assertEquals(1, notificationService.getMyNotifications(teacher.id, 50).size)
+        assertTrue(pushSender.sent.isEmpty())
+    }
+
+    @Test
+    fun `settings list only the categories of the user's role`() {
+        val teacherCategories = notificationService.getSettings(teacher.id, Role.TEACHER).keys
+        assertEquals(setOf(NotificationCategory.REVIEW_QUEUE, NotificationCategory.APPEAL_INBOX), teacherCategories)
+
+        val error = assertFailsWith<BusinessException> {
+            notificationService.updateSetting(student.id, Role.STUDENT, NotificationCategory.REVIEW_QUEUE, false)
+        }
+        assertEquals(ErrorCode.INVALID_NOTIFICATION_CATEGORY, error.errorCode)
+        assertFailsWith<BusinessException> {
+            notificationService.updateSetting(teacher.id, Role.TEACHER, NotificationCategory.NOTICE, false)
+        }
     }
 }
