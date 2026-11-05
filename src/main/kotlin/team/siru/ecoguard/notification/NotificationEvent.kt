@@ -1,5 +1,7 @@
 package team.siru.ecoguard.notification
 
+import java.time.LocalTime
+
 /**
  * 알림을 보내 달라는 요청. 서비스는 이 이벤트만 발행하고, 트랜잭션이 커밋된 뒤에 [NotificationListener] 가 처리한다.
  * 문구는 여기 팩토리에 모아 둔다. 푸시는 잠금화면에 보이므로 반려 사유 같은 상세 내용은 넣지 않는다.
@@ -52,6 +54,18 @@ data class NotificationEvent(
         fun recruitmentCreated(studentIds: List<Long>, recruitmentId: Long, grade: Int, classNo: Int) = NotificationEvent(
             studentIds, NotificationType.RECRUITMENT_CREATED,
             "청소 모집 시작", "${grade}학년 ${classNo}반 청소 모집이 시작됐어요.", recruitmentId,
+        )
+
+        /** 청소 인증 시작 직전 안내. 끝나는 시각을 알려 준다. */
+        fun cleaningStartReminder(studentIds: List<Long>, areaId: Long, areaName: String, endTime: LocalTime) = NotificationEvent(
+            studentIds, NotificationType.CLEANING_REMINDER,
+            "오늘 청소 인증 시간이에요", "${areaName} 청소 후 ${endTime}까지 사진을 인증해 주세요.", areaId,
+        )
+
+        /** 마감 직전 안내. 아직 제출하지 않은 학생에게만 간다. */
+        fun cleaningDeadlineReminder(studentIds: List<Long>, areaId: Long, areaName: String, endTime: LocalTime) = NotificationEvent(
+            studentIds, NotificationType.CLEANING_REMINDER,
+            "청소 인증 마감이 다가와요", "${endTime}까지 인증하지 않으면 오늘은 인증할 수 없어요. (${areaName})", areaId,
         )
 
         fun areaUnassigned(studentId: Long, areaId: Long, areaName: String) = NotificationEvent(

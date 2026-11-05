@@ -11,4 +11,5 @@ enum class NotificationType {
     AREA_UNASSIGNED,
     NOTICE_CREATED,
     RECRUITMENT_CREATED,
+    CLEANING_REMINDER,
 }
