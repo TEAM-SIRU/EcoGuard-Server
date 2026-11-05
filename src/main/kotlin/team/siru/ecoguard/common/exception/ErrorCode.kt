@@ -69,4 +69,5 @@ enum class ErrorCode(val status: HttpStatus, val defaultMessage: String) {
 
     // notifications
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."),
+    INVALID_NOTIFICATION_CATEGORY(HttpStatus.BAD_REQUEST, "해당 역할이 설정할 수 없는 알림 종류입니다."),
 }

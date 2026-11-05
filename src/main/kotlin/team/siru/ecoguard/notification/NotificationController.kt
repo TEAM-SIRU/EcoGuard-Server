@@ -18,6 +18,10 @@ import team.siru.ecoguard.notification.dto.NotificationListResponse
 import team.siru.ecoguard.notification.dto.NotificationResponse
 import team.siru.ecoguard.notification.dto.RegisterTokenRequest
 import team.siru.ecoguard.notification.dto.RemoveTokenRequest
+import team.siru.ecoguard.user.Role
+import team.siru.ecoguard.notification.dto.NotificationSettingResponse
+import team.siru.ecoguard.notification.dto.UpdateNotificationSettingRequest
+import org.springframework.web.bind.annotation.PutMapping
 
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -50,6 +54,24 @@ class NotificationController(
                 notifications = notificationService.getMyNotifications(userId, limit).map(NotificationResponse::from),
             ),
         )
+    }
+
+    /** 알림 종류별 푸시 수신 여부. 설정한 적 없는 종류는 켜져 있다. 꺼도 알림함에는 계속 쌓인다. */
+    @GetMapping("/settings")
+    fun getSettings(): ResponseEntity<List<NotificationSettingResponse>> =
+        ResponseEntity.ok(
+            notificationService.getSettings(SecurityUtils.currentUserId(), currentRole())
+                .map { (category, enabled) -> NotificationSettingResponse(category, category.label, enabled) },
+        )
+
+    /** 설정 화면에 보이는 알림 종류는 역할(학생·교사)마다 다르다. */
+    private fun currentRole() = if (SecurityUtils.hasRole(Role.TEACHER)) Role.TEACHER else Role.STUDENT
+
+    @ApiErrors(ErrorCode.INVALID_NOTIFICATION_CATEGORY)
+    @PutMapping("/settings")
+    fun updateSetting(@Valid @RequestBody request: UpdateNotificationSettingRequest): ResponseEntity<Void> {
+        notificationService.updateSetting(SecurityUtils.currentUserId(), currentRole(), request.category!!, request.enabled!!)
+        return ResponseEntity.ok().build()
     }
 
     @PatchMapping("/{notificationId}/read")

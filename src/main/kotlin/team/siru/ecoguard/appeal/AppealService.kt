@@ -71,6 +71,7 @@ class AppealService(
                 photoUrls = photoUrls.toMutableList(),
             ),
         )
+        eventPublisher.publishEvent(NotificationEvent.appealReceived(appeal.id, student.name))
         return CreateAppealResponse(appeal.id, appeal.status, appeal.round)
     }
 

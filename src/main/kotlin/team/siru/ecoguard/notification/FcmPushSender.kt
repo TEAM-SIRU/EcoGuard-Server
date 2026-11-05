@@ -45,6 +45,8 @@ class FcmPushSender(
 
     private companion object {
         const val MAX_BATCH = 500
-        val DEAD_TOKEN_CODES = setOf(MessagingErrorCode.UNREGISTERED, MessagingErrorCode.INVALID_ARGUMENT)
+        // INVALID_ARGUMENT 는 토큰이 아니라 메시지(크기·형식)가 문제일 때도 나오므로 죽은 토큰으로 보지 않는다.
+        // 형식이 잘못된 토큰은 오래 갱신되지 않아 60일 뒤 정리된다.
+        val DEAD_TOKEN_CODES = setOf(MessagingErrorCode.UNREGISTERED)
     }
 }
