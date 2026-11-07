@@ -1,9 +1,11 @@
 package team.siru.ecoguard.aireview
 
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import team.siru.ecoguard.notification.NotificationEvent
 import team.siru.ecoguard.verification.VerificationRepository
 import team.siru.ecoguard.verification.VerificationStatus
 import java.time.Clock
@@ -17,6 +19,7 @@ import java.time.LocalDateTime
 @Component
 class StaleReviewRecovery(
     private val verificationRepository: VerificationRepository,
+    private val eventPublisher: ApplicationEventPublisher,
     private val clock: Clock,
 ) {
 
@@ -35,6 +38,11 @@ class StaleReviewRecovery(
         )
         if (updated > 0) {
             log.warn("검수가 끝나지 않은 인증 {}건을 수동 검토로 전환했습니다: {}", updated, ids)
+            // 일괄 UPDATE 라서 실제로 바뀐 건만 다시 읽어 알린다(그 사이 AI 가 승인한 건은 제외).
+            verificationRepository.findAllById(ids)
+                .filter { it.status == VerificationStatus.MANUAL_REVIEW }
+                .forEach { eventPublisher.publishEvent(NotificationEvent.verificationManualReview(it.student.id, it.id)) }
+            eventPublisher.publishEvent(NotificationEvent.manualReviewPendingBatch(updated))
         }
     }
 

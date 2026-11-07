@@ -1,11 +1,15 @@
 package team.siru.ecoguard.notification
 
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
+import team.siru.ecoguard.user.Role
+import team.siru.ecoguard.user.UserRepository
 import java.time.Clock
 import java.time.LocalDateTime
 
@@ -13,6 +17,9 @@ import java.time.LocalDateTime
 class NotificationService(
     private val notificationRepository: NotificationRepository,
     private val deviceTokenRepository: DeviceTokenRepository,
+    private val settingRepository: NotificationSettingRepository,
+    private val userRepository: UserRepository,
+    private val transactionTemplate: TransactionTemplate,
     private val pushSender: PushSender,
     private val clock: Clock,
 ) {
@@ -21,7 +28,8 @@ class NotificationService(
 
     /** 알림함에 기록하고 푸시를 보낸다. FCM 호출이 DB 트랜잭션을 붙잡지 않도록 이 메서드 자체는 트랜잭션이 아니다. */
     fun deliver(event: NotificationEvent) {
-        val userIds = event.userIds.distinct()
+        val audienceIds = event.audience?.let { userRepository.findIdsByRole(it) }.orEmpty()
+        val userIds = (event.userIds + audienceIds).distinct()
         if (userIds.isEmpty()) return
 
         val saved = notificationRepository.saveAll(
@@ -29,29 +37,53 @@ class NotificationService(
         )
         val idByUser = saved.associate { it.userId to it.id }
 
-        val tokensByUser = deviceTokenRepository.findByUserIdIn(userIds).groupBy({ it.userId }, { it.token })
-        // 푸시 data 에는 알림 id 도 실어서, 앱이 알림을 눌렀을 때 알림함의 읽음 처리를 같이 할 수 있다.
-        tokensByUser.forEach { (userId, tokens) ->
-            val message = PushMessage(
-                title = event.title,
-                body = event.body,
-                data = buildMap {
-                    put("type", event.type.name)
-                    event.refId?.let { put("refId", it.toString()) }
-                    idByUser[userId]?.let { put("notificationId", it.toString()) }
-                },
-            )
-            val dead = pushSender.send(tokens, message)
-            if (dead.isNotEmpty()) {
-                deviceTokenRepository.deleteByTokenIn(dead)
-                log.info("사용할 수 없는 푸시 토큰 {}개를 삭제했습니다.", dead.size)
-            }
+        // 알림함에는 모두 남기고, 이 종류의 푸시를 끈 사용자에게만 푸시를 보내지 않는다.
+        val muted = settingRepository.findDisabledUserIds(event.type.category, userIds).toSet()
+        val pushTargets = userIds.filterNot { it in muted }
+        if (pushTargets.isEmpty()) return
+
+        val tokensByUser = deviceTokenRepository.findByUserIdIn(pushTargets).groupBy({ it.userId }, { it.token })
+        if (userIds.size == 1) {
+            // 한 명에게 가는 알림은 알림함 id 도 실어서, 앱이 알림을 눌렀을 때 읽음 처리를 같이 할 수 있다.
+            tokensByUser.forEach { (userId, tokens) -> push(tokens, event, idByUser[userId]) }
+        } else {
+            // 여러 명에게 가는 알림(공지·모집·여러 학생 배정)은 FCM 호출을 줄이려고 토큰을 모아 한 번에 보낸다.
+            push(tokensByUser.values.flatten(), event, notificationId = null)
         }
     }
 
-    /** 같은 토큰이 이미 있으면 주인과 플랫폼을 새 값으로 바꾼다(기기를 다른 계정이 이어 쓰는 경우). */
-    @Transactional
+    private fun push(tokens: List<String>, event: NotificationEvent, notificationId: Long?) {
+        if (tokens.isEmpty()) return
+        val message = PushMessage(
+            title = event.title,
+            body = event.body,
+            data = buildMap {
+                put("type", event.type.name)
+                event.refId?.let { put("refId", it.toString()) }
+                notificationId?.let { put("notificationId", it.toString()) }
+            },
+        )
+        val dead = pushSender.send(tokens, message)
+        if (dead.isNotEmpty()) {
+            deviceTokenRepository.deleteByTokenIn(dead)
+            log.info("사용할 수 없는 푸시 토큰 {}개를 삭제했습니다.", dead.size)
+        }
+    }
+
+    /**
+     * 같은 토큰이 이미 있으면 주인과 플랫폼을 새 값으로 바꾼다(기기를 다른 계정이 이어 쓰는 경우).
+     * 앱이 실행·로그인마다 호출하므로 같은 새 토큰이 동시에 들어올 수 있다. 한쪽이 유니크 제약에 걸리면
+     * (트랜잭션은 이미 롤백 표시되므로) 새 트랜잭션에서 한 번 더 시도해 먼저 저장된 행을 갱신한다.
+     */
     fun registerToken(userId: Long, token: String, platform: DevicePlatform) {
+        try {
+            transactionTemplate.executeWithoutResult { upsertToken(userId, token, platform) }
+        } catch (e: DataIntegrityViolationException) {
+            transactionTemplate.executeWithoutResult { upsertToken(userId, token, platform) }
+        }
+    }
+
+    private fun upsertToken(userId: Long, token: String, platform: DevicePlatform) {
         val now = LocalDateTime.now(clock)
         val existing = deviceTokenRepository.findByToken(token)
         if (existing == null) {
@@ -66,6 +98,24 @@ class NotificationService(
     fun removeToken(userId: Long, token: String) = deviceTokenRepository.deleteByUserIdAndToken(userId, token)
 
     fun removeAllTokens(userId: Long) = deviceTokenRepository.deleteByUserId(userId)
+
+    /** [role] 이 설정할 수 있는 카테고리의 수신 여부. 설정한 적 없는 카테고리는 켜진 것으로 돌려준다. */
+    @Transactional(readOnly = true)
+    fun getSettings(userId: Long, role: Role): Map<NotificationCategory, Boolean> {
+        val saved = settingRepository.findByUserId(userId).associate { it.category to it.enabled }
+        return NotificationCategory.entries.filter { it.audience == role }.associateWith { saved[it] ?: true }
+    }
+
+    @Transactional
+    fun updateSetting(userId: Long, role: Role, category: NotificationCategory, enabled: Boolean) {
+        if (category.audience != role) throw BusinessException(ErrorCode.INVALID_NOTIFICATION_CATEGORY)
+        val existing = settingRepository.findByUserIdAndCategory(userId, category)
+        if (existing == null) {
+            settingRepository.save(NotificationSetting(userId, category, enabled))
+        } else {
+            existing.enabled = enabled
+        }
+    }
 
     /** 60일 넘게 갱신되지 않은 토큰을 지운다. */
     fun purgeStaleTokens(): Int = deviceTokenRepository.deleteStale(LocalDateTime.now(clock).minusDays(STALE_TOKEN_DAYS))

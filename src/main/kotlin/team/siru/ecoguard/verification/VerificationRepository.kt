@@ -47,6 +47,10 @@ interface VerificationRepository : JpaRepository<Verification, Long> {
         @Param("approved") approved: VerificationStatus = VerificationStatus.APPROVED,
     ): List<Array<Any>>
 
+    /** [date] 에 이미 인증을 제출한 학생 id. */
+    @Query("select v.student.id from Verification v where v.verificationDate = :date and v.student.id in :studentIds")
+    fun findSubmittedStudentIds(@Param("date") date: LocalDate, @Param("studentIds") studentIds: Collection<Long>): List<Long>
+
     fun existsByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Boolean
     fun findByStudentIdAndIdempotencyKey(studentId: Long, idempotencyKey: String): Verification?
     fun findByStudentIdAndVerificationDate(studentId: Long, verificationDate: LocalDate): Verification?

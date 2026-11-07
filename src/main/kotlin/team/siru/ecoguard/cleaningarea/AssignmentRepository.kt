@@ -22,6 +22,10 @@ interface AssignmentRepository : JpaRepository<Assignment, Long> {
 
     fun findByStudentId(studentId: Long): List<Assignment>
 
+    /** 활성 구역에 배정된 학생을 [구역, 학생 id] 로 가져온다. 리마인더 대상을 고를 때 쓴다. */
+    @Query("select a.area, a.student.id from Assignment a where a.area.isActive = true")
+    fun findActiveAreaAssignments(): List<Array<Any>>
+
     fun findByAreaIdAndStudentId(areaId: Long, studentId: Long): List<Assignment>
 
     @Query("select count(distinct a.student.id) from Assignment a")

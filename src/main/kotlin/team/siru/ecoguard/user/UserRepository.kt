@@ -14,5 +14,11 @@ interface UserRepository : JpaRepository<User, Long> {
 
     fun findByGsmAccountId(gsmAccountId: Long): User?
     fun findByRole(role: Role): List<User>
+
+    @Query("select u.id from User u where u.role = :role")
+    fun findIdsByRole(@Param("role") role: Role): List<Long>
+
+    @Query("select u.id from User u where u.role = :role and u.grade = :grade and u.classNo = :classNo")
+    fun findIdsByRoleAndClass(@Param("role") role: Role, @Param("grade") grade: Int, @Param("classNo") classNo: Int): List<Long>
     fun findByNameContainingOrStudentNumberContaining(name: String, studentNumber: String): List<User>
 }

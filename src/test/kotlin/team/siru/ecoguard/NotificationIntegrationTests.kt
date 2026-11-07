@@ -13,17 +13,26 @@ import org.springframework.transaction.support.TransactionTemplate
 import team.siru.ecoguard.auth.AuthService
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
+import team.siru.ecoguard.notice.NoticeRepository
+import team.siru.ecoguard.notice.NoticeService
+import team.siru.ecoguard.notice.dto.CreateNoticeRequest
 import team.siru.ecoguard.notification.DevicePlatform
 import team.siru.ecoguard.notification.DeviceTokenRepository
+import team.siru.ecoguard.notification.NotificationCategory
 import team.siru.ecoguard.notification.NotificationEvent
+import team.siru.ecoguard.notification.NotificationSettingRepository
 import team.siru.ecoguard.notification.NotificationRepository
 import team.siru.ecoguard.notification.NotificationService
 import team.siru.ecoguard.notification.NotificationType
 import team.siru.ecoguard.notification.PushMessage
 import team.siru.ecoguard.notification.PushSender
+import team.siru.ecoguard.recruitment.RecruitmentRepository
+import team.siru.ecoguard.recruitment.RecruitmentService
+import team.siru.ecoguard.recruitment.dto.CreateRecruitmentRequest
 import team.siru.ecoguard.user.Role
 import team.siru.ecoguard.user.User
 import team.siru.ecoguard.user.UserRepository
+import java.time.LocalDateTime
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -41,6 +50,11 @@ class NotificationIntegrationTests @Autowired constructor(
     private val deviceTokenRepository: DeviceTokenRepository,
     private val userRepository: UserRepository,
     private val authService: AuthService,
+    private val noticeService: NoticeService,
+    private val recruitmentService: RecruitmentService,
+    private val recruitmentRepository: RecruitmentRepository,
+    private val noticeRepository: NoticeRepository,
+    private val settingRepository: NotificationSettingRepository,
     private val pushSender: RecordingPushSender,
 ) {
 
@@ -64,19 +78,26 @@ class NotificationIntegrationTests @Autowired constructor(
 
     private lateinit var student: User
     private lateinit var other: User
+    private lateinit var teacher: User
+    private lateinit var otherClassStudent: User
 
     @BeforeEach
     fun setUp() {
         cleanUp()
         student = userRepository.save(User(9001L, "n1@gsm.hs.kr", "학생1", Role.STUDENT, "1101", 1, 1))
         other = userRepository.save(User(9002L, "n2@gsm.hs.kr", "학생2", Role.STUDENT, "1102", 1, 1))
+        teacher = userRepository.save(User(9003L, "t@gsm.hs.kr", "선생님", Role.TEACHER))
+        otherClassStudent = userRepository.save(User(9004L, "n4@gsm.hs.kr", "학생4", Role.STUDENT, "2301", 2, 3))
     }
 
     @AfterEach
     fun cleanUp() {
+        recruitmentRepository.deleteAll()
+        noticeRepository.deleteAll()
+        settingRepository.deleteAll()
         notificationRepository.deleteAll()
         deviceTokenRepository.deleteAll()
-        userRepository.findAll().filter { it.gsmAccountId in listOf(9001L, 9002L) }.forEach(userRepository::delete)
+        userRepository.findAll().filter { it.gsmAccountId in listOf(9001L, 9002L, 9003L, 9004L, 9005L) }.forEach(userRepository::delete)
         pushSender.sent.clear()
         pushSender.dead.clear()
     }
@@ -202,5 +223,180 @@ class NotificationIntegrationTests @Autowired constructor(
 
         notificationService.markRead(student.id, id)
         assertEquals(0, notificationService.countUnread(student.id))
+    }
+
+    @Test
+    fun `a new notice reaches every student in one batched push but not teachers`() {
+        notificationService.registerToken(student.id, "token-s1", DevicePlatform.ANDROID)
+        notificationService.registerToken(otherClassStudent.id, "token-s4", DevicePlatform.IOS)
+        notificationService.registerToken(teacher.id, "token-teacher", DevicePlatform.WEB)
+
+        val noticeId = noticeService.create(teacher.id, CreateNoticeRequest("급식실 청소 안내", "내용")).noticeId
+        awaitNotifications(student.id, 1)
+        awaitNotifications(otherClassStudent.id, 1)
+        Thread.sleep(200)
+
+        assertEquals(1, pushSender.sent.size)
+        val (tokens, message) = pushSender.sent[0]
+        assertEquals(setOf("token-s1", "token-s4"), tokens.toSet())
+        assertEquals("NOTICE_CREATED", message.data["type"])
+        assertEquals(noticeId.toString(), message.data["refId"])
+        assertEquals("급식실 청소 안내", message.body)
+        assertNull(message.data["notificationId"])
+
+        assertEquals(NotificationType.NOTICE_CREATED, notificationService.getMyNotifications(student.id, 50)[0].type)
+        assertEquals(0, notificationService.getMyNotifications(teacher.id, 50).size)
+    }
+
+    @Test
+    fun `a new recruitment only reaches students of that grade and class`() {
+        notificationService.registerToken(student.id, "token-s1", DevicePlatform.ANDROID)
+        notificationService.registerToken(other.id, "token-s2", DevicePlatform.ANDROID)
+        notificationService.registerToken(otherClassStudent.id, "token-s4", DevicePlatform.ANDROID)
+
+        val now = LocalDateTime.now()
+        val recruitmentId = recruitmentService.createRecruitment(
+            teacher.id,
+            CreateRecruitmentRequest("2학기", 1, 1, 4, now, now.plusDays(7)),
+        ).recruitmentId
+        awaitNotifications(student.id, 1)
+        awaitNotifications(other.id, 1)
+        Thread.sleep(200)
+
+        assertEquals(1, pushSender.sent.size)
+        val (tokens, message) = pushSender.sent[0]
+        assertEquals(setOf("token-s1", "token-s2"), tokens.toSet())
+        assertEquals("RECRUITMENT_CREATED", message.data["type"])
+        assertEquals(recruitmentId.toString(), message.data["refId"])
+        assertEquals(0, notificationService.getMyNotifications(otherClassStudent.id, 50).size)
+    }
+
+    @Test
+    fun `settings default to enabled and can be toggled per category`() {
+        val initial = notificationService.getSettings(student.id, Role.STUDENT)
+        assertEquals(NotificationCategory.entries.filter { it.audience == Role.STUDENT }.toSet(), initial.keys)
+        assertTrue(initial.values.all { it })
+
+        notificationService.updateSetting(student.id, Role.STUDENT, NotificationCategory.NOTICE, false)
+        assertEquals(false, notificationService.getSettings(student.id, Role.STUDENT)[NotificationCategory.NOTICE])
+        assertEquals(true, notificationService.getSettings(student.id, Role.STUDENT)[NotificationCategory.APPEAL])
+        assertEquals(true, notificationService.getSettings(other.id, Role.STUDENT)[NotificationCategory.NOTICE])
+
+        notificationService.updateSetting(student.id, Role.STUDENT, NotificationCategory.NOTICE, true)
+        assertEquals(true, notificationService.getSettings(student.id, Role.STUDENT)[NotificationCategory.NOTICE])
+        assertEquals(1, settingRepository.findByUserId(student.id).size)
+    }
+
+    @Test
+    fun `a muted category keeps the inbox entry but sends no push`() {
+        notificationService.registerToken(student.id, "token-a", DevicePlatform.ANDROID)
+        notificationService.updateSetting(student.id, Role.STUDENT, NotificationCategory.VERIFICATION, false)
+
+        transactionTemplate.executeWithoutResult {
+            publisher.publishEvent(NotificationEvent.verificationApproved(student.id, 1L))
+        }
+        awaitNotifications(student.id, 1)
+        Thread.sleep(200)
+
+        assertEquals(1, notificationService.getMyNotifications(student.id, 50).size)
+        assertTrue(pushSender.sent.isEmpty())
+
+        // 다른 종류는 그대로 온다.
+        transactionTemplate.executeWithoutResult {
+            publisher.publishEvent(NotificationEvent.appealApproved(student.id, 2L))
+        }
+        awaitNotifications(student.id, 2)
+        Thread.sleep(200)
+
+        assertEquals(1, pushSender.sent.size)
+        assertEquals("APPEAL_APPROVED", pushSender.sent[0].second.data["type"])
+    }
+
+    @Test
+    fun `a broadcast skips only the students who muted that category`() {
+        notificationService.registerToken(student.id, "token-s1", DevicePlatform.ANDROID)
+        notificationService.registerToken(other.id, "token-s2", DevicePlatform.ANDROID)
+        notificationService.updateSetting(other.id, Role.STUDENT, NotificationCategory.NOTICE, false)
+
+        noticeService.create(teacher.id, CreateNoticeRequest("공지", "내용"))
+        awaitNotifications(student.id, 1)
+        awaitNotifications(other.id, 1)
+        Thread.sleep(200)
+
+        assertEquals(listOf("token-s1"), pushSender.sent.single().first)
+        assertEquals(1, notificationService.getMyNotifications(other.id, 50).size)
+    }
+
+    @Test
+    fun `manual review request reaches every teacher but no student`() {
+        val secondTeacher = userRepository.save(User(9005L, "t2@gsm.hs.kr", "선생님2", Role.TEACHER))
+        notificationService.registerToken(teacher.id, "token-t1", DevicePlatform.WEB)
+        notificationService.registerToken(secondTeacher.id, "token-t2", DevicePlatform.WEB)
+        notificationService.registerToken(student.id, "token-s1", DevicePlatform.ANDROID)
+
+        transactionTemplate.executeWithoutResult {
+            publisher.publishEvent(NotificationEvent.manualReviewPending(55L, "김학생", "본관 계단 A"))
+        }
+        awaitNotifications(teacher.id, 1)
+        awaitNotifications(secondTeacher.id, 1)
+        Thread.sleep(200)
+
+        val (tokens, message) = pushSender.sent.single()
+        assertEquals(setOf("token-t1", "token-t2"), tokens.toSet())
+        assertEquals("MANUAL_REVIEW_PENDING", message.data["type"])
+        assertEquals("55", message.data["refId"])
+        assertTrue(message.body.contains("김학생"))
+        assertEquals(0, notificationService.getMyNotifications(student.id, 50).size)
+
+        userRepository.delete(secondTeacher)
+    }
+
+    @Test
+    fun `teachers can mute their own categories`() {
+        notificationService.registerToken(teacher.id, "token-t1", DevicePlatform.WEB)
+        notificationService.updateSetting(teacher.id, Role.TEACHER, NotificationCategory.APPEAL_INBOX, false)
+
+        transactionTemplate.executeWithoutResult {
+            publisher.publishEvent(NotificationEvent.appealReceived(9L, "김학생"))
+        }
+        awaitNotifications(teacher.id, 1)
+        Thread.sleep(200)
+
+        assertEquals(1, notificationService.getMyNotifications(teacher.id, 50).size)
+        assertTrue(pushSender.sent.isEmpty())
+    }
+
+    @Test
+    fun `settings list only the categories of the user's role`() {
+        val teacherCategories = notificationService.getSettings(teacher.id, Role.TEACHER).keys
+        assertEquals(setOf(NotificationCategory.REVIEW_QUEUE, NotificationCategory.APPEAL_INBOX), teacherCategories)
+
+        val error = assertFailsWith<BusinessException> {
+            notificationService.updateSetting(student.id, Role.STUDENT, NotificationCategory.REVIEW_QUEUE, false)
+        }
+        assertEquals(ErrorCode.INVALID_NOTIFICATION_CATEGORY, error.errorCode)
+        assertFailsWith<BusinessException> {
+            notificationService.updateSetting(teacher.id, Role.TEACHER, NotificationCategory.NOTICE, false)
+        }
+    }
+
+    @Test
+    fun `concurrent registrations of the same new token all succeed and leave one row`() {
+        val threads = 8
+        val start = java.util.concurrent.CountDownLatch(1)
+        val errors = CopyOnWriteArrayList<Throwable>()
+        val workers = (1..threads).map { i ->
+            Thread {
+                start.await()
+                runCatching {
+                    notificationService.registerToken(if (i % 2 == 0) student.id else other.id, "racing-token", DevicePlatform.ANDROID)
+                }.onFailure { errors += it }
+            }.also { it.start() }
+        }
+        start.countDown()
+        workers.forEach { it.join(10_000) }
+
+        assertTrue(errors.isEmpty(), "등록이 실패하면 안 됩니다: $errors")
+        assertEquals(1, deviceTokenRepository.count())
     }
 }

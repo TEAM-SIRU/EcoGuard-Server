@@ -16,6 +16,7 @@ import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.storage.FileStorageService
 import team.siru.ecoguard.notification.NotificationEvent
+import team.siru.ecoguard.verification.Verification
 import team.siru.ecoguard.verification.VerificationRepository
 import team.siru.ecoguard.verification.VerificationStatus
 import java.time.Clock
@@ -143,7 +144,7 @@ class AiReviewService(
                     verification.status = VerificationStatus.MANUAL_REVIEW
                     verification.manualReviewReason =
                         (if (response.isPassed == null) ManualReviewReason.AI_ERROR else ManualReviewReason.AI_FAILED).name
-                    eventPublisher.publishEvent(NotificationEvent.verificationManualReview(verification.student.id, verification.id))
+                    publishManualReview(verification)
                 }
             }
 
@@ -158,9 +159,17 @@ class AiReviewService(
                 verification.failReasons = outcome.failReasons.toMutableList()
                 verification.status = VerificationStatus.MANUAL_REVIEW
                 verification.manualReviewReason = outcome.reason.name
-                eventPublisher.publishEvent(NotificationEvent.verificationManualReview(verification.student.id, verification.id))
+                publishManualReview(verification)
             }
         }
+    }
+
+    /** 수동 검토로 넘어간 인증을 학생에게는 진행 상황으로, 교사에게는 검토 요청으로 알린다. */
+    private fun publishManualReview(verification: Verification) {
+        eventPublisher.publishEvent(NotificationEvent.verificationManualReview(verification.student.id, verification.id))
+        eventPublisher.publishEvent(
+            NotificationEvent.manualReviewPending(verification.id, verification.student.name, verification.area.name),
+        )
     }
 
     @Transactional(readOnly = true)
