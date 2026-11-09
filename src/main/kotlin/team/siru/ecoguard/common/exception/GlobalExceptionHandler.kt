@@ -89,6 +89,7 @@ class GlobalExceptionHandler {
             .body(ErrorResponse(ErrorCode.NOT_FOUND.name, ErrorCode.NOT_FOUND.defaultMessage))
     }
 
+    // REVIEW: 이런 핸들링 되지 않은 예외는 Discord 내지 팀이 즉시 알 수 있는 메신저로 알림이 가도록 해주면 좋을 것 같아요. (Sentry, Slack, Discord 등)
     @ExceptionHandler(Exception::class)
     fun handleException(e: Exception): ResponseEntity<ErrorResponse> {
         log.error("Unhandled exception", e)

@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties(prefix = "jwt")
 data class JwtProperties(
     val secret: String,
+    // REVIEW: 이러한 시간류는 프로퍼티 내지 환경변수로 주입하면 좋을 것 같아요, 이미 환경변수로 주입받고 있다면 코드상엔 기본값을 안두는게 혹여나 의도치 않은 설정이 조용히 적용되는걸 막을 수 있을것 같습니다
     val accessTokenValiditySeconds: Long = 60 * 60 * 2,
     val refreshTokenValiditySeconds: Long = 60 * 60 * 24 * 7,
 ) {

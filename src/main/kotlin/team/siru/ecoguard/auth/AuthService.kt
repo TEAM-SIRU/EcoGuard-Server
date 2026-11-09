@@ -17,6 +17,7 @@ import team.siru.ecoguard.user.UserRepository
 
 @Service
 class AuthService(
+    // REVIEW: DataGSM OAuth 연동을 직접 구현하는게 아니라 SDK를 써도 됬을것 같습니다
     private val gsmOAuthClient: GsmOAuthClient,
     private val demoAccountAuthenticator: DemoAccountAuthenticator,
     private val teacherEmailPromoter: TeacherEmailPromoter,
@@ -34,6 +35,7 @@ class AuthService(
 
         // 같은 계정의 첫 로그인 요청이 동시에 오면 둘 다 새로 가입하려다 유니크 제약에 걸린다. 한 번 더 시도하면 이미 가입된 사용자를 찾는다.
         val user = try {
+            // REVIEW: !! 어센셜은 여기서 불필요한거 같습니다
             transactionTemplate.execute { upsertUser(userInfo) }!!
         } catch (e: DataIntegrityViolationException) {
             transactionTemplate.execute { upsertUser(userInfo) }!!

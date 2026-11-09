@@ -31,6 +31,9 @@ import java.time.temporal.TemporalAdjusters
 
 private const val CLEANING_DAYS_PER_WEEK = 5
 
+// REVIEW: 하나의 서비스 클래스에 여러 public 메서드를 두고 처리하는것은 지금처럼 API 수가 적은 상황에서는 큰 문제가 되지 않지만
+// SOLID 중 SRP 위반이 될 수 있고 하나의 API 변경이 다른 API에 영향을 줄 수 있습니다
+// 따라서 서비스 클래스를 기능별로 나누는 것이 좋을것 같아요. (예: QueryMonthlyActivityService, QueryWeeklyActivityService, ModifyActivityService 등)
 @Service
 class ActivityService(
     private val serviceTimeLogRepository: ServiceTimeLogRepository,
@@ -59,6 +62,7 @@ class ActivityService(
             .filter { it.result != ActivityResult.UPCOMING }
             .sortedByDescending { it.date }
 
+        // REVIEW: 이러한 DTO 조립 로직은 DTO Inner 메서드를 만들거나 하는 식으로 바꾸는것도 좋을 것 같아요
         return MyActivityResponse(
             totalMinutes = serviceTimeLogRepository.sumMinutesByStudentId(studentId),
             year = month.year,

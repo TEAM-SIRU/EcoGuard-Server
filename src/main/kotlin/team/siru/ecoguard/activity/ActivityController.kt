@@ -28,6 +28,9 @@ class ActivityController(
 
     @GetMapping("/service-times/me")
     @ApiErrors(ErrorCode.VALIDATION_ERROR)
+    // REVIEW: PreAuthorize 어노테이션보단 Filter를 이용하여 Spirng Security Context에 사용자 정보를 넣고 그곳에서 관리하는 것이 더 좋을 것 같습니다
+    // 현재는 인증/인가 로직이 컨트롤러에도 일부분 책임이 있어 관리가 어렵고 권한 설정이 하나의 지점에 모이지 않고 있습니다.
+    // GSMC v3 서버 권한 설정 클래스(https://github.com/team-incube/GSMC-server-V3/blob/main/src/main/kotlin/com/team/incube/gsmc/v3/global/security/config/DomainAuthorizationConfig.kt)를 참고해보세요
     @PreAuthorize("hasRole('STUDENT')")
     fun getMyActivity(
         @RequestParam(required = false) year: Int?,
@@ -61,6 +64,7 @@ class ActivityController(
     ): ResponseEntity<MyActivityResponse> =
         ResponseEntity.ok(activityService.getStudentMonthlyActivity(studentId, toYearMonth(year, month)))
 
+    // REVIEW: 이러한 로직은 서비스 계층으로 이동시키는게 좋아보여요, 컨트롤러 계층이 이러한 책임을 가지는 것은 SRP 위반이 되며 비즈니스 로직을 일부분 가지고 있는 것이에요
     private fun toYearMonth(year: Int?, month: Int?): YearMonth {
         val now = YearMonth.now(clock)
         return try {

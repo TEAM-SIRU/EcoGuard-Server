@@ -25,6 +25,7 @@ server:
   port: ${SERVER_PORT:8080}
 
 # API 명세(OpenAPI)와 Swagger UI. 운영에서는 기본으로 꺼 두고, 필요할 때만 SWAGGER_ENABLED=true 로 켠다.
+# REVIEW: 어차피 개발환경에서만 켤것이라면 username/password를 굳이 설정할 필요가 있나 싶긴 해요
 # 켜면 SWAGGER_USERNAME / SWAGGER_PASSWORD(12자 이상)로만 볼 수 있고, 둘 중 하나라도 없으면 서버가 시작하지 않는다.
 swagger:
   enabled: ${SWAGGER_ENABLED:false}
@@ -72,6 +73,12 @@ teacher-emails:
 
 cors:
   # 쉼표로 구분한 허용 Origin 목록
+  # REVIEW: 프로퍼티를 잘 쓰고 계시던데 그걸 십분 활용해서 이것도 쓰면 어떠할까 싶어요
+  # Hello, GSM 서버 CORS 허용 출처 코드를 참고해보세요(https://github.com/themoment-team/hellogsm-server-26/blob/main/src/main/java/team/themoment/hellogsmv3/global/security/data/AuthEnvironment.java,
+  # auth:
+  #  allowed-origins:
+  #      - http://localhost:3000
+  #      - http://localhost:5173
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
 # 사진 검수 방식. gemini(기본): Gemini API 로 검수하고 통과만 자동 승인한다.
@@ -101,6 +108,7 @@ gemini:
 
 # 방학 기간에는 청소 인증을 막는다. NEIS 학사일정의 방학식~개학 사이를 방학으로 본다.
 # 키나 학교 코드가 비어 있으면 방학 제한을 적용하지 않는다.
+# REVIEW: GSM OAuth라고 되어 있어서 헷갈렸는데 DataGSM을 쓰고 있다면 이것도 DataGSM OpenAPI를 사용하도록 통합하는게 관리 포인트를 줄이는것이 될수도 있을 것 같아요
 neis:
   api-key: ${NEIS_API_KEY:}
   education-office-code: ${NEIS_EDUCATION_OFFICE_CODE:}

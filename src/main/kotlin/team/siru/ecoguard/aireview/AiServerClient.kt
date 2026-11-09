@@ -57,8 +57,9 @@ class AiServerClient(
             part("zone_id", zoneId)
             userId?.let { part("user_id", it) }
         }.build()
-
+        // Review: 이런 외부 호출 지점은 인프라 계층으로 옮겨도 좋을 것 같고 이러한 로직은 유틸로 분리해서 재사용해도 좋을 것 같아요(외부 API 호출 및 에러 처리)
         return try {
+            // Review: 어차피 동기 호출이라면 Feign 클라이언트 같은걸 써봐도 좋을 것 같아요.
             val rawResponse = aiServerRestClient.post()
                 .uri(properties.evaluatePath)
                 .contentType(MediaType.MULTIPART_FORM_DATA)

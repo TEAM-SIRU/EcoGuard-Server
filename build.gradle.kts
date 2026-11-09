@@ -33,6 +33,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
     runtimeOnly("com.mysql:mysql-connector-j")
+    // REVIEW: H2는 왜 있나요? 통합테스트가 있는것도 아니고 개발할때 쓰시나요? 차라리 개발할땐 MySQL을 Docker로 띄우는게 괜찮지 않을까요?
     testRuntimeOnly("com.h2database:h2")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-security-test")

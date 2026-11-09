@@ -38,6 +38,9 @@ import java.time.ZoneId
 
 private val VACATION: ClosedRange<LocalDate> = LocalDate.of(2026, 9, 14)..LocalDate.of(2026, 9, 18)
 
+// REVIEW: 모든 테스트에 해당사항이 있지만 테스트가 너무 비효율적인 구조에요.
+// DCI/BDD 와 같은 테스트 방법론을 적용하지 않더라도 한번만 Mocking하고 한번만 초기화해서 테스트하면 좋을 것 같아요.
+// 또한 테스트 클래스 패키지 구조 역시 실제 서비스 배치에 맞게 나누면 좋겠어요
 /**
  * 기준 시각 2026-09-16(수) 09:00, 9/14~9/18 이 방학이다. 9/7 승인, 9/8 반려만 제출했다.
  *
