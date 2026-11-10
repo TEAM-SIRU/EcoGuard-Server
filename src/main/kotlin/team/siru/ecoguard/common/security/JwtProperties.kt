@@ -5,8 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties(prefix = "jwt")
 data class JwtProperties(
     val secret: String,
-    val accessTokenValiditySeconds: Long = 60 * 60 * 2,
-    val refreshTokenValiditySeconds: Long = 60 * 60 * 24 * 7,
+    val accessTokenValiditySeconds: Long,
+    val refreshTokenValiditySeconds: Long,
 ) {
     init {
         // 서명 키가 32바이트보다 짧으면 서버는 뜨지만 로그인이 전부 실패한다. 배포 헬스체크도 통과해 버리므로 시작할 때 막는다.

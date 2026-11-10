@@ -23,13 +23,13 @@ class UploadAndSecretConfigTests {
 
     @Test
     fun `a jwt secret shorter than 32 bytes stops the server from starting`() {
-        val ex = assertThrows<IllegalStateException> { JwtProperties(secret = "too-short-secret") }
+        val ex = assertThrows<IllegalStateException> { JwtProperties(secret = "too-short-secret", accessTokenValiditySeconds = 7200, refreshTokenValiditySeconds = 604800) }
 
         assertTrue(ex.message!!.contains("32"), ex.message)
     }
 
     @Test
     fun `a 32 byte jwt secret is accepted`() {
-        JwtProperties(secret = "a".repeat(32))
+        JwtProperties(secret = "a".repeat(32), accessTokenValiditySeconds = 7200, refreshTokenValiditySeconds = 604800)
     }
 }
