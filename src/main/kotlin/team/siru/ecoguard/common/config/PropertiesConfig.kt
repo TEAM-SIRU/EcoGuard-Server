@@ -9,6 +9,7 @@ import team.siru.ecoguard.auth.DemoAccountProperties
 import team.siru.ecoguard.auth.GsmOAuthProperties
 import team.siru.ecoguard.auth.TeacherEmailProperties
 import team.siru.ecoguard.cleaningarea.CleaningAreaSeedProperties
+import team.siru.ecoguard.common.alert.DiscordAlertProperties
 import team.siru.ecoguard.common.security.JwtProperties
 import team.siru.ecoguard.common.storage.FileStorageProperties
 import team.siru.ecoguard.notification.FcmProperties
@@ -30,5 +31,7 @@ import team.siru.ecoguard.verification.VerificationProperties
     VerificationProperties::class,
     SwaggerProperties::class,
     FcmProperties::class,
+    CorsProperties::class,
+    DiscordAlertProperties::class,
 )
 class PropertiesConfig

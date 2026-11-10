@@ -1,5 +1,6 @@
 package team.siru.ecoguard.common.exception
 
+import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -15,9 +16,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.support.MissingServletRequestPartException
 import org.springframework.web.servlet.resource.NoResourceFoundException
+import team.siru.ecoguard.common.alert.DiscordAlertNotifier
 
 @RestControllerAdvice
-class GlobalExceptionHandler {
+class GlobalExceptionHandler(
+    /** 단위 테스트에서 핸들러만 만들어 쓸 때는 없어도 된다. */
+    private val discordAlertNotifier: DiscordAlertNotifier? = null,
+) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -90,8 +95,9 @@ class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception::class)
-    fun handleException(e: Exception): ResponseEntity<ErrorResponse> {
+    fun handleException(e: Exception, request: HttpServletRequest): ResponseEntity<ErrorResponse> {
         log.error("Unhandled exception", e)
+        discordAlertNotifier?.notifyUnhandled(e, request.method, request.requestURI)
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(ErrorResponse(ErrorCode.INTERNAL_SERVER_ERROR.name, ErrorCode.INTERNAL_SERVER_ERROR.defaultMessage))
     }

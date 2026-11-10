@@ -11,19 +11,14 @@ import team.siru.ecoguard.activity.dto.MyActivityResponse
 import team.siru.ecoguard.activity.dto.StudentActivityResponse
 import team.siru.ecoguard.activity.dto.WeeklyActivityResponse
 import team.siru.ecoguard.activity.dto.WeeklyParticipationResponse
-import team.siru.ecoguard.common.exception.BusinessException
+import team.siru.ecoguard.common.exception.ApiErrors
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.common.security.SecurityUtils
-import java.time.Clock
-import java.time.DateTimeException
-import java.time.YearMonth
-import team.siru.ecoguard.common.exception.ApiErrors
 
 @RestController
 @RequestMapping("/api/v1")
 class ActivityController(
     private val activityService: ActivityService,
-    private val clock: Clock,
 ) {
 
     @GetMapping("/service-times/me")
@@ -33,7 +28,7 @@ class ActivityController(
         @RequestParam(required = false) year: Int?,
         @RequestParam(required = false) month: Int?,
     ): ResponseEntity<MyActivityResponse> =
-        ResponseEntity.ok(activityService.getMonthlyActivity(SecurityUtils.currentUserId(), toYearMonth(year, month)))
+        ResponseEntity.ok(activityService.getMonthlyActivity(SecurityUtils.currentUserId(), year, month))
 
     @GetMapping("/service-times/me/weekly")
     @PreAuthorize("hasRole('STUDENT')")
@@ -59,14 +54,5 @@ class ActivityController(
         @RequestParam(required = false) year: Int?,
         @RequestParam(required = false) month: Int?,
     ): ResponseEntity<MyActivityResponse> =
-        ResponseEntity.ok(activityService.getStudentMonthlyActivity(studentId, toYearMonth(year, month)))
-
-    private fun toYearMonth(year: Int?, month: Int?): YearMonth {
-        val now = YearMonth.now(clock)
-        return try {
-            YearMonth.of(year ?: now.year, month ?: now.monthValue)
-        } catch (e: DateTimeException) {
-            throw BusinessException(ErrorCode.VALIDATION_ERROR)
-        }
-    }
+        ResponseEntity.ok(activityService.getStudentMonthlyActivity(studentId, year, month))
 }

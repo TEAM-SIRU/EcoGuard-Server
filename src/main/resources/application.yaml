@@ -74,6 +74,13 @@ cors:
   # 쉼표로 구분한 허용 Origin 목록
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
+# 처리하지 못한 서버 에러(500)를 디스코드 채널로 알린다. 웹훅 주소를 비워 두면 알림을 보내지 않는다.
+# 디스코드 채널 설정 > 연동 > 웹후크에서 주소를 만들어 DISCORD_ALERT_WEBHOOK_URL 에 넣는다.
+discord:
+  alert:
+    webhook-url: ${DISCORD_ALERT_WEBHOOK_URL:}
+    cooldown-seconds: ${DISCORD_ALERT_COOLDOWN_SECONDS:60}
+
 # 사진 검수 방식. gemini(기본): Gemini API 로 검수하고 통과만 자동 승인한다.
 # ai-server: 자체 AI 서버로 검수한다 (AI 모델이 준비되면 전환).
 ai-review:

@@ -2,19 +2,18 @@ package team.siru.ecoguard.auth
 
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
-import org.springframework.web.client.HttpClientErrorException
-import org.springframework.web.client.RestClient
-import team.siru.ecoguard.auth.dto.GsmAccountInfoResponse
-import team.siru.ecoguard.auth.dto.GsmTokenRequest
-import team.siru.ecoguard.auth.dto.GsmTokenResponse
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.user.Role
+import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient
+import team.themoment.datagsm.sdk.oauth.exception.ForbiddenException
+import team.themoment.datagsm.sdk.oauth.model.AccountObjectType
+import team.themoment.datagsm.sdk.oauth.model.UserInfo
 
 /**
  * 실제 dataGSM OAuth 연동 구현체. `gsm.oauth.mock=false`일 때 활성화된다.
+ * HTTP 요청과 응답 해석은 DataGSM 공식 SDK(datagsm-oauth-sdk-java)에 맡긴다.
  *
  * 필요한 설정(application.yaml / 환경변수):
  * - gsm.oauth.client-id       (GSM_OAUTH_CLIENT_ID)   : datagsm.kr/clients 에서 발급받은 Client ID
@@ -28,17 +27,19 @@ import team.siru.ecoguard.user.Role
 @Component
 @ConditionalOnProperty(prefix = "gsm.oauth", name = ["mock"], havingValue = "false", matchIfMissing = true)
 class GsmOAuthRealClient(
-    private val gsmAuthorizationRestClient: RestClient,
-    private val gsmResourceRestClient: RestClient,
+    private val dataGsmOAuthClient: DataGsmOAuthClient,
     private val properties: GsmOAuthProperties,
 ) : GsmOAuthClient {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun authenticate(authCode: String, redirectUri: String?): GsmUserInfo {
-        val token = exchangeToken(authCode, resolveRedirectUri(redirectUri))
-        val account = fetchAccountInfo(token.accessToken)
-        return toGsmUserInfo(account)
+        val resolvedRedirectUri = resolveRedirectUri(redirectUri)
+        val accessToken = callDataGsm("토큰 교환") {
+            dataGsmOAuthClient.exchangeCodeForToken(authCode, resolvedRedirectUri).accessToken
+        }
+        val userInfo = callDataGsm("사용자 정보 조회") { dataGsmOAuthClient.getUserInfo(accessToken) }
+        return toGsmUserInfo(userInfo)
     }
 
     /** 요청이 보낸 redirectUri는 서버 기본 주소나 허용 목록에 있을 때만 쓴다. 임의 주소로 토큰 교환을 시도하지 못하게 한다. */
@@ -50,61 +51,30 @@ class GsmOAuthRealClient(
         return requested
     }
 
-    private fun exchangeToken(authCode: String, redirectUri: String): GsmTokenResponse {
-        val request = GsmTokenRequest(
-            clientId = properties.clientId,
-            clientSecret = properties.clientSecret,
-            code = authCode,
-            redirectUri = redirectUri,
-        )
-        return try {
-            gsmAuthorizationRestClient.post()
-                .uri("/v1/oauth/token")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(GsmTokenResponse::class.java)
-                ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
-        } catch (e: BusinessException) {
-            throw e
-        } catch (e: HttpClientErrorException.Forbidden) {
-            log.warn("dataGSM 토큰 교환 거부(403)", e)
+    /** SDK 호출 실패를 우리 에러(OAUTH_FAILED)로 바꾼다. */
+    private fun <T> callDataGsm(step: String, call: () -> T?): T {
+        val result = try {
+            call()
+        } catch (e: ForbiddenException) {
+            log.warn("dataGSM {} 거부(403)", step, e)
             throw BusinessException(ErrorCode.OAUTH_FAILED, FORBIDDEN_MESSAGE)
         } catch (e: Exception) {
-            log.warn("dataGSM 토큰 교환 실패", e)
+            log.warn("dataGSM {} 실패", step, e)
             throw BusinessException(ErrorCode.OAUTH_FAILED)
         }
+        return result ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
     }
 
-    private fun fetchAccountInfo(accessToken: String): GsmAccountInfoResponse {
-        return try {
-            gsmResourceRestClient.get()
-                .uri("/userinfo")
-                .header("Authorization", "Bearer $accessToken")
-                .retrieve()
-                .body(GsmAccountInfoResponse::class.java)
-                ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
-        } catch (e: BusinessException) {
-            throw e
-        } catch (e: HttpClientErrorException.Forbidden) {
-            log.warn("dataGSM 사용자 정보 조회 거부(403)", e)
-            throw BusinessException(ErrorCode.OAUTH_FAILED, FORBIDDEN_MESSAGE)
-        } catch (e: Exception) {
-            log.warn("dataGSM 사용자 정보 조회 실패", e)
-            throw BusinessException(ErrorCode.OAUTH_FAILED)
-        }
-    }
+    private fun toGsmUserInfo(userInfo: UserInfo): GsmUserInfo {
+        val accountId = userInfo.id ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
+        val email = userInfo.email ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
 
-    private fun toGsmUserInfo(account: GsmAccountInfoResponse): GsmUserInfo {
-        val role = runCatching { Role.valueOf(account.objectType ?: "") }
-            .getOrElse { throw BusinessException(ErrorCode.OAUTH_FAILED, "학생/교사 정보가 연결되지 않은 계정입니다.") }
-
-        return when (role) {
-            Role.STUDENT -> {
-                val student = account.student ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
+        return when (userInfo.objectType) {
+            AccountObjectType.STUDENT -> {
+                val student = userInfo.student ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
                 GsmUserInfo(
-                    gsmAccountId = account.id,
-                    email = account.email,
+                    gsmAccountId = accountId,
+                    email = email,
                     name = student.name,
                     role = Role.STUDENT,
                     studentNumber = student.studentNumber?.toString(),
@@ -113,11 +83,11 @@ class GsmOAuthRealClient(
                 )
             }
 
-            Role.TEACHER -> {
-                val teacher = account.teacher ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
+            AccountObjectType.TEACHER -> {
+                val teacher = userInfo.teacher ?: throw BusinessException(ErrorCode.OAUTH_FAILED)
                 GsmUserInfo(
-                    gsmAccountId = account.id,
-                    email = account.email,
+                    gsmAccountId = accountId,
+                    email = email,
                     name = teacher.name,
                     role = Role.TEACHER,
                     studentNumber = null,
@@ -125,6 +95,8 @@ class GsmOAuthRealClient(
                     classNo = null,
                 )
             }
+
+            null -> throw BusinessException(ErrorCode.OAUTH_FAILED, "학생/교사 정보가 연결되지 않은 계정입니다.")
         }
     }
 

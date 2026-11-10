@@ -10,6 +10,8 @@ spring:
 
 jwt:
   secret: test-secret-key-for-jwt-signing-please-make-it-long-enough-1234567890
+  access-token-validity-seconds: 7200
+  refresh-token-validity-seconds: 604800
 
 gsm:
   oauth:
