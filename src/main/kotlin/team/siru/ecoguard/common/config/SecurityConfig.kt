@@ -1,6 +1,5 @@
 package team.siru.ecoguard.common.config
 
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
@@ -20,7 +19,7 @@ import team.siru.ecoguard.common.security.TokenRevocationChecker
 @Configuration
 @EnableMethodSecurity
 class SecurityConfig(
-    @Value("\${cors.allowed-origins:http://localhost:3000}") private val allowedOrigins: List<String>,
+    private val corsProperties: CorsProperties,
     private val jwtTokenProvider: JwtTokenProvider,
     private val tokenRevocationChecker: TokenRevocationChecker,
 ) {
@@ -49,7 +48,7 @@ class SecurityConfig(
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration().apply {
-            allowedOrigins = this@SecurityConfig.allowedOrigins
+            allowedOrigins = corsProperties.allowedOrigins
             allowedMethods = listOf("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS")
             allowedHeaders = listOf("*")
             allowCredentials = true
