@@ -23,6 +23,7 @@ import team.siru.ecoguard.verification.Verification
 import team.siru.ecoguard.verification.VerificationRepository
 import team.siru.ecoguard.verification.VerificationStatus
 import java.time.Clock
+import java.time.DateTimeException
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -49,9 +50,12 @@ class ActivityService(
         )
     }
 
-    /** 월별 활동 기록: 날짜/구역/인증 결과, 승인/반려/미제출 집계, 누적 시간 */
+    /** 월별 활동 기록: 날짜/구역/인증 결과, 승인/반려/미제출 집계, 누적 시간. 연·월을 비우면 이번 달로 본다. */
     @Transactional(readOnly = true)
-    fun getMonthlyActivity(studentId: Long, month: YearMonth): MyActivityResponse {
+    fun getMonthlyActivity(studentId: Long, year: Int?, month: Int?): MyActivityResponse =
+        buildMonthlyActivity(studentId, resolveMonth(year, month))
+
+    private fun buildMonthlyActivity(studentId: Long, month: YearMonth): MyActivityResponse {
         val from = month.atDay(1)
         val to = month.atEndOfMonth()
         val allDays = buildRecords(studentId, from, to, LocalDateTime.now(clock))
@@ -151,11 +155,21 @@ class ActivityService(
     }
 
     @Transactional(readOnly = true)
-    fun getStudentMonthlyActivity(studentId: Long, month: YearMonth): MyActivityResponse {
+    fun getStudentMonthlyActivity(studentId: Long, year: Int?, month: Int?): MyActivityResponse {
         userRepository.findById(studentId)
             .filter { it.role == Role.STUDENT }
             .orElseThrow { BusinessException(ErrorCode.STUDENT_NOT_FOUND) }
-        return getMonthlyActivity(studentId, month)
+        return buildMonthlyActivity(studentId, resolveMonth(year, month))
+    }
+
+    /** 연·월 중 빈 값은 이번 달 값으로 채운다. 13월처럼 없는 달이면 입력 오류다. */
+    private fun resolveMonth(year: Int?, month: Int?): YearMonth {
+        val now = YearMonth.now(clock)
+        return try {
+            YearMonth.of(year ?: now.year, month ?: now.monthValue)
+        } catch (e: DateTimeException) {
+            throw BusinessException(ErrorCode.VALIDATION_ERROR)
+        }
     }
 
     /**
