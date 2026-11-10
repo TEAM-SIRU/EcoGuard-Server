@@ -13,6 +13,8 @@ import org.springframework.test.web.client.response.MockRestResponseCreators.wit
 import org.springframework.web.client.RestClient
 import team.siru.ecoguard.auth.GsmOAuthProperties
 import team.siru.ecoguard.auth.GsmOAuthRealClient
+import team.siru.ecoguard.auth.RestClientDataGsmHttpClient
+import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient
 import team.siru.ecoguard.common.exception.BusinessException
 import team.siru.ecoguard.common.exception.ErrorCode
 import team.siru.ecoguard.user.Role
@@ -34,13 +36,39 @@ class GsmOAuthRealClientTests {
         val resource: MockRestServiceServer,
     )
 
+    /** 토큰 교환과 사용자 정보 조회가 한 RestClient를 쓰므로 가짜 서버 하나로 순서대로 응답한다. */
     private fun newFixture(): Fixture {
-        val authorizationBuilder = RestClient.builder().baseUrl("http://authorization.test")
-        val resourceBuilder = RestClient.builder().baseUrl("http://resource.test")
-        val authorization = MockRestServiceServer.bindTo(authorizationBuilder).build()
-        val resource = MockRestServiceServer.bindTo(resourceBuilder).build()
-        val client = GsmOAuthRealClient(authorizationBuilder.build(), resourceBuilder.build(), properties)
-        return Fixture(client, authorization, resource)
+        val builder = RestClient.builder()
+        val server = MockRestServiceServer.bindTo(builder).build()
+        val sdk = DataGsmOAuthClient.builder(properties.clientId, properties.clientSecret)
+            .authorizationBaseUrl("http://authorization.test")
+            .userInfoBaseUrl("http://resource.test")
+            .httpClient(RestClientDataGsmHttpClient(builder.build()))
+            .build()
+        return Fixture(GsmOAuthRealClient(sdk, properties), server, server)
+    }
+
+    @Test
+    fun `student account logs in as STUDENT with class info`() {
+        val f = newFixture()
+        f.authorization.expectToken()
+        f.resource.expect(requestTo("http://resource.test/userinfo"))
+            .andRespond(
+                withSuccess(
+                    """{"id":3,"email":"s@gsm.hs.kr","objectType":"STUDENT",
+                       "student":{"name":"김학생","grade":1,"classNum":2,"number":5,"studentNumber":1205}}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val user = f.client.authenticate("code", null)
+
+        assertEquals(Role.STUDENT, user.role)
+        assertEquals(3L, user.gsmAccountId)
+        assertEquals("김학생", user.name)
+        assertEquals("1205", user.studentNumber)
+        assertEquals(1, user.grade)
+        assertEquals(2, user.classNo)
     }
 
     private fun MockRestServiceServer.expectToken() {
