@@ -110,6 +110,15 @@ class NotificationIntegrationTests @Autowired constructor(
         }
     }
 
+    /** 푸시는 알림함 저장 뒤 비동기로 나가므로, 알림함만 기다리면 아직 안 보냈을 수 있다. */
+    private fun awaitPushes(count: Int) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline) {
+            if (pushSender.sent.size >= count) return
+            Thread.sleep(50)
+        }
+    }
+
     @Test
     fun `event after commit is stored in the inbox and pushed to the user's devices`() {
         notificationService.registerToken(student.id, "token-a", DevicePlatform.ANDROID)
@@ -120,6 +129,7 @@ class NotificationIntegrationTests @Autowired constructor(
             publisher.publishEvent(NotificationEvent.verificationRejected(student.id, 77L))
         }
         awaitNotifications(student.id, 1)
+        awaitPushes(1)
 
         val inbox = notificationService.getMyNotifications(student.id, 50)
         assertEquals(1, inbox.size)
@@ -234,6 +244,7 @@ class NotificationIntegrationTests @Autowired constructor(
         val noticeId = noticeService.create(teacher.id, CreateNoticeRequest("급식실 청소 안내", "내용")).noticeId
         awaitNotifications(student.id, 1)
         awaitNotifications(otherClassStudent.id, 1)
+        awaitPushes(1)
         Thread.sleep(200)
 
         assertEquals(1, pushSender.sent.size)
@@ -261,6 +272,7 @@ class NotificationIntegrationTests @Autowired constructor(
         ).recruitmentId
         awaitNotifications(student.id, 1)
         awaitNotifications(other.id, 1)
+        awaitPushes(1)
         Thread.sleep(200)
 
         assertEquals(1, pushSender.sent.size)
@@ -306,6 +318,7 @@ class NotificationIntegrationTests @Autowired constructor(
             publisher.publishEvent(NotificationEvent.appealApproved(student.id, 2L))
         }
         awaitNotifications(student.id, 2)
+        awaitPushes(1)
         Thread.sleep(200)
 
         assertEquals(1, pushSender.sent.size)
@@ -321,6 +334,7 @@ class NotificationIntegrationTests @Autowired constructor(
         noticeService.create(teacher.id, CreateNoticeRequest("공지", "내용"))
         awaitNotifications(student.id, 1)
         awaitNotifications(other.id, 1)
+        awaitPushes(1)
         Thread.sleep(200)
 
         assertEquals(listOf("token-s1"), pushSender.sent.single().first)
@@ -339,6 +353,7 @@ class NotificationIntegrationTests @Autowired constructor(
         }
         awaitNotifications(teacher.id, 1)
         awaitNotifications(secondTeacher.id, 1)
+        awaitPushes(1)
         Thread.sleep(200)
 
         val (tokens, message) = pushSender.sent.single()
