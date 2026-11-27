@@ -106,6 +106,53 @@ class OpenApiDocsTests @Autowired constructor(
         assertEquals("APPROVED", applyResponse.at("/status/example").asString())
         assertEquals("2026-10-07T07:30:00", applyResponse.at("/appliedAt/example").asString())
     }
+
+    @Test
+    fun `every api has a summary and a description so app developers do not have to guess`() {
+        val root = objectMapper.readTree(docs().contentAsString)
+        val missing = mutableListOf<String>()
+        root.at("/paths").properties().forEach { (path, methods) ->
+            methods.properties().forEach { (method, operation) ->
+                if (operation.at("/summary").asString("").isBlank() || operation.at("/description").asString("").isBlank()) {
+                    missing += "$method $path"
+                }
+            }
+        }
+
+        assertTrue(missing.isEmpty(), "summary/description 이 없는 API: $missing")
+    }
+
+    @Test
+    fun `the login guide explains the real oauth flow`() {
+        val root = objectMapper.readTree(docs().contentAsString)
+        val guide = root.at("/info/description").asString()
+
+        assertTrue(guide.contains("/v1/oauth/authorize"), guide.take(300))
+        assertTrue(guide.contains("PKCE"), guide.take(300))
+        assertTrue(guide.contains("redirectUri"), guide.take(300))
+    }
+
+    @Test
+    fun `login apis need no token while the rest document a bodiless 401`() {
+        val root = objectMapper.readTree(docs().contentAsString)
+        val login = root.at("/paths/~1api~1v1~1auth~1login/post")
+        val me = root.at("/paths/~1api~1v1~1users~1me/get")
+
+        assertEquals(0, login.at("/security").size(), login.toString())
+        assertTrue(login.at("/responses/401/description").asString().contains("OAUTH_FAILED"), login.toString())
+        assertTrue(me.at("/responses/401").isObject, me.toString())
+        assertTrue(me.at("/responses/401/content").isMissingNode, me.toString())
+    }
+
+    @Test
+    fun `error responses carry an example body per code`() {
+        val root = objectMapper.readTree(docs().contentAsString)
+        val conflict = root.at("/paths/~1api~1v1~1verifications/post/responses/409/content/application~1json")
+
+        assertEquals("#/components/schemas/ErrorResponse", conflict.at("/schema/\$ref").asString(), conflict.toString())
+        assertEquals("ALREADY_SUBMITTED_TODAY", conflict.at("/examples/ALREADY_SUBMITTED_TODAY/value/code").asString(), conflict.toString())
+        assertTrue(root.at("/components/schemas/ErrorResponse").isObject)
+    }
 }
 
 @SpringBootTest

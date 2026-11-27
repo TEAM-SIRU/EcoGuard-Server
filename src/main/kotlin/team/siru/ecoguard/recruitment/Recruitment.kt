@@ -1,5 +1,6 @@
 package team.siru.ecoguard.recruitment
 
+import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType
@@ -62,6 +63,7 @@ class Recruitment(
     }
 }
 
+@Schema(description = "모집 진행 상태(서버 현재 시각 기준) · `UPCOMING`: 시작 전 · `OPEN`: 모집 중(신청 가능) · `CLOSED`: 마감")
 enum class RecruitmentPeriodStatus {
     UPCOMING,
     OPEN,
